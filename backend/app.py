@@ -15,18 +15,7 @@ STATIC_FOLDER = os.path.join(os.path.dirname(__file__), "static_frontend")
 app = Flask(__name__, static_folder=STATIC_FOLDER, static_url_path="")
 app.config.from_object(Config)
 
-cors_env = os.environ.get("CORS_ORIGINS", "")
-if cors_env.strip() == "*":
-    CORS(app, supports_credentials=False, origins="*")
-else:
-    allowed_origins = [
-        "http://localhost:5173", "http://127.0.0.1:5173",
-        "http://localhost:5174", "http://127.0.0.1:5174",
-        "http://localhost:5175", "http://127.0.0.1:5175",
-    ]
-    if cors_env:
-        allowed_origins.extend([o.strip() for o in cors_env.split(",") if o.strip()])
-    CORS(app, supports_credentials=True, origins=allowed_origins)
+CORS(app, resources={r"/api/*": {"origins": "*"}}, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization"])
 db.init_app(app)
 
 # ── JWT helpers ────────────────────────────────────────────────────────────────
