@@ -109,8 +109,8 @@ export default function MyReports() {
             <div className="card-header fw-semibold">Appeal requests</div>
             <ul className="list-group list-group-flush">
               {['pending', 'accepted', 'rejected'].map((k) => (
-                <li key={k} className="list-group-item d-flex justify-content-between align-items-center text-capitalize">
-                  {k}
+                <li key={k} className="list-group-item d-flex justify-content-between align-items-center">
+                  <StatusBadge status={k} />
                   <span className="fw-semibold">{ac[k] ?? 0}</span>
                 </li>
               ))}
