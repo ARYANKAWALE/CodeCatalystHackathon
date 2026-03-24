@@ -5,6 +5,54 @@ from werkzeug.security import generate_password_hash, check_password_hash
 db = SQLAlchemy()
 
 
+class Appeal(db.Model):
+    """Student request to pursue an internship or placement with a company; admin accepts or rejects."""
+
+    __tablename__ = "appeals"
+    APPEAL_TYPES = ("internship", "placement")
+    STATUSES = ("pending", "accepted", "rejected")
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False)
+    appeal_type = db.Column(db.String(20), nullable=False)
+    title = db.Column(db.String(150), nullable=False)
+    message = db.Column(db.Text)
+    package_lpa = db.Column(db.Float)
+    status = db.Column(db.String(20), nullable=False, default="pending")
+    admin_note = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    reviewed_at = db.Column(db.DateTime)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    result_internship_id = db.Column(db.Integer, db.ForeignKey("internships.id"), nullable=True)
+    result_placement_id = db.Column(db.Integer, db.ForeignKey("placements.id"), nullable=True)
+
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id], backref="reviewed_appeals")
+    result_internship = db.relationship("Internship", foreign_keys=[result_internship_id])
+    result_placement = db.relationship("Placement", foreign_keys=[result_placement_id])
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "student_id": self.student_id,
+            "company_id": self.company_id,
+            "appeal_type": self.appeal_type,
+            "title": self.title,
+            "message": self.message,
+            "package_lpa": self.package_lpa,
+            "status": self.status,
+            "admin_note": self.admin_note,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "reviewed_at": self.reviewed_at.isoformat() if self.reviewed_at else None,
+            "reviewer_user_id": self.reviewer_user_id,
+            "result_internship_id": self.result_internship_id,
+            "result_placement_id": self.result_placement_id,
+            "student_name": self.student.name if self.student else None,
+            "student_roll": self.student.roll_number if self.student else None,
+            "company_name": self.company.name if self.company else None,
+        }
+
+
 class User(db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
@@ -50,6 +98,7 @@ class Student(db.Model):
 
     internships = db.relationship("Internship", backref="student", lazy=True, cascade="all, delete-orphan")
     placements = db.relationship("Placement", backref="student", lazy=True, cascade="all, delete-orphan")
+    appeals = db.relationship("Appeal", backref="student", lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self, include_relations=False):
         d = {
@@ -86,6 +135,7 @@ class Company(db.Model):
 
     internships = db.relationship("Internship", backref="company", lazy=True, cascade="all, delete-orphan")
     placements = db.relationship("Placement", backref="company", lazy=True, cascade="all, delete-orphan")
+    appeals = db.relationship("Appeal", backref="company", lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self, include_relations=False):
         d = {

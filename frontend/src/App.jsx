@@ -25,6 +25,9 @@ import Reports from './pages/Reports';
 import PlacementSummary from './pages/PlacementSummary';
 import InternshipSummary from './pages/InternshipSummary';
 import CompanyWiseReport from './pages/CompanyWiseReport';
+import AppealList from './pages/AppealList';
+import AppealForm from './pages/AppealForm';
+import MyReports from './pages/MyReports';
 
 function P({ children }) {
   return <ProtectedRoute>{children}</ProtectedRoute>;
@@ -73,6 +76,9 @@ function AppLayout() {
             <Route path="/reports/placement-summary" element={<P><AdminRoute><PlacementSummary /></AdminRoute></P>} />
             <Route path="/reports/internship-summary" element={<P><AdminRoute><InternshipSummary /></AdminRoute></P>} />
             <Route path="/reports/company-wise" element={<P><AdminRoute><CompanyWiseReport /></AdminRoute></P>} />
+            <Route path="/reports/me" element={<P><MyReports /></P>} />
+            <Route path="/appeals" element={<P><AppealList /></P>} />
+            <Route path="/appeals/new" element={<P><AppealForm /></P>} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

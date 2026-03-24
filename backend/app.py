@@ -9,7 +9,7 @@ from flask_cors import CORS
 from sqlalchemy import false as sql_false
 
 from config import Config
-from models import db, User, Student, Company, Internship, Placement
+from models import db, User, Student, Company, Internship, Placement, Appeal
 
 STATIC_FOLDER = os.path.join(os.path.dirname(__file__), "static_frontend")
 
@@ -180,9 +180,12 @@ def dashboard():
         student = db.session.get(Student, g.current_user.student_id)
         if not student:
             return jsonify({"error": "Student not found"}), 404
+        sid = g.current_user.student_id
+        appeal_counts = {s: Appeal.query.filter_by(student_id=sid, status=s).count() for s in Appeal.STATUSES}
         return jsonify({
             "type": "student",
             "student": student.to_dict(include_relations=True),
+            "appeal_counts": appeal_counts,
         })
 
     total_students = Student.query.count()
@@ -206,6 +209,7 @@ def dashboard():
 
     recent_placements = [p.to_dict() for p in Placement.query.order_by(Placement.created_at.desc()).limit(5).all()]
     recent_internships = [i.to_dict() for i in Internship.query.order_by(Internship.created_at.desc()).limit(5).all()]
+    pending_appeals = Appeal.query.filter_by(status="pending").count()
 
     return jsonify({
         "type": "admin",
@@ -223,6 +227,7 @@ def dashboard():
         "placement_status_counts": placement_status_counts,
         "recent_placements": recent_placements,
         "recent_internships": recent_internships,
+        "pending_appeals": pending_appeals,
     })
 
 
@@ -662,6 +667,175 @@ def placements_delete(id):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# APPEALS (student requests → admin accept / reject)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/appeals", methods=["POST"])
+@token_required
+def appeals_create():
+    is_stu, vsid = student_data_scope()
+    if not is_stu or not vsid:
+        return jsonify({"error": "Only students can submit appeals"}), 403
+    data = request.get_json() or {}
+    appeal_type = (data.get("appeal_type") or "").strip().lower()
+    if appeal_type not in Appeal.APPEAL_TYPES:
+        return jsonify({"error": "appeal_type must be internship or placement"}), 400
+    title = (data.get("title") or "").strip()
+    company_id = data.get("company_id")
+    if not title or company_id is None:
+        return jsonify({"error": "company_id and title are required"}), 400
+    try:
+        cid = int(company_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid company_id"}), 400
+    if not db.session.get(Company, cid):
+        return jsonify({"error": "Company not found"}), 404
+
+    message = (data.get("message") or "").strip() or None
+    package_lpa = None
+    if appeal_type == "placement":
+        raw_pkg = data.get("package_lpa")
+        if raw_pkg not in (None, ""):
+            try:
+                package_lpa = float(raw_pkg)
+            except (TypeError, ValueError):
+                return jsonify({"error": "Invalid package_lpa"}), 400
+
+    appeal = Appeal(
+        student_id=vsid,
+        company_id=cid,
+        appeal_type=appeal_type,
+        title=title,
+        message=message,
+        package_lpa=package_lpa,
+    )
+    db.session.add(appeal)
+    try:
+        db.session.commit()
+        return jsonify(appeal.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/appeals")
+@token_required
+def appeals_list():
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 20, type=int)
+    status_filter = (request.args.get("status") or "").strip().lower()
+
+    q = Appeal.query
+    is_stu, vsid = student_data_scope()
+    if is_stu:
+        if not vsid:
+            return jsonify({
+                "items": [], "total": 0, "page": 1, "pages": 0,
+                "has_next": False, "has_prev": False,
+                "statuses": list(Appeal.STATUSES),
+            })
+        q = q.filter_by(student_id=vsid)
+    if status_filter in Appeal.STATUSES:
+        q = q.filter_by(status=status_filter)
+
+    pag = q.order_by(Appeal.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    return jsonify({
+        "items": [a.to_dict() for a in pag.items],
+        "total": pag.total,
+        "page": pag.page,
+        "pages": pag.pages,
+        "has_next": pag.has_next,
+        "has_prev": pag.has_prev,
+        "statuses": list(Appeal.STATUSES),
+    })
+
+
+@app.route("/api/appeals/<int:id>")
+@token_required
+def appeals_get(id):
+    appeal = db.session.get(Appeal, id)
+    if not appeal:
+        return jsonify({"error": "Appeal not found"}), 404
+    is_stu, vsid = student_data_scope()
+    if is_stu:
+        if not vsid or appeal.student_id != vsid:
+            return jsonify({"error": "Forbidden"}), 403
+    elif current_user_role() != "admin":
+        return jsonify({"error": "Forbidden"}), 403
+    return jsonify(appeal.to_dict())
+
+
+@app.route("/api/appeals/<int:id>/accept", methods=["POST"])
+@admin_required
+def appeals_accept(id):
+    appeal = db.session.get(Appeal, id)
+    if not appeal:
+        return jsonify({"error": "Appeal not found"}), 404
+    if appeal.status != "pending":
+        return jsonify({"error": "Appeal is not pending"}), 400
+
+    now = datetime.utcnow()
+    try:
+        if appeal.appeal_type == "internship":
+            internship = Internship(
+                student_id=appeal.student_id,
+                company_id=appeal.company_id,
+                title=appeal.title,
+                description=appeal.message or "",
+                status="applied",
+                stipend=0,
+            )
+            db.session.add(internship)
+            db.session.flush()
+            appeal.result_internship_id = internship.id
+        elif appeal.appeal_type == "placement":
+            pkg = float(appeal.package_lpa) if appeal.package_lpa is not None else 0.0
+            placement = Placement(
+                student_id=appeal.student_id,
+                company_id=appeal.company_id,
+                role=appeal.title,
+                package_lpa=pkg,
+                status="applied",
+            )
+            db.session.add(placement)
+            db.session.flush()
+            appeal.result_placement_id = placement.id
+        else:
+            return jsonify({"error": "Invalid appeal type"}), 400
+
+        appeal.status = "accepted"
+        appeal.reviewed_at = now
+        appeal.reviewer_user_id = g.current_user.id
+        db.session.commit()
+        return jsonify(appeal.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/appeals/<int:id>/reject", methods=["POST"])
+@admin_required
+def appeals_reject(id):
+    appeal = db.session.get(Appeal, id)
+    if not appeal:
+        return jsonify({"error": "Appeal not found"}), 404
+    if appeal.status != "pending":
+        return jsonify({"error": "Appeal is not pending"}), 400
+    data = request.get_json() or {}
+    note = (data.get("admin_note") or "").strip() or None
+    appeal.status = "rejected"
+    appeal.admin_note = note
+    appeal.reviewed_at = datetime.utcnow()
+    appeal.reviewer_user_id = g.current_user.id
+    try:
+        db.session.commit()
+        return jsonify(appeal.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # SEARCH
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -712,6 +886,32 @@ def search():
 # ══════════════════════════════════════════════════════════════════════════════
 # REPORTS
 # ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/reports/me")
+@token_required
+def report_me():
+    """Personal summary for students only (own internships, placements, appeals)."""
+    is_stu, vsid = student_data_scope()
+    if not is_stu or not vsid:
+        return jsonify({"error": "This report is only available for student accounts"}), 403
+    student = db.session.get(Student, vsid)
+    if not student:
+        return jsonify({"error": "Student not found"}), 404
+
+    internship_status_counts = {s: Internship.query.filter_by(student_id=vsid, status=s).count() for s in Internship.STATUSES}
+    placement_status_counts = {s: Placement.query.filter_by(student_id=vsid, status=s).count() for s in Placement.STATUSES}
+    appeal_counts = {s: Appeal.query.filter_by(student_id=vsid, status=s).count() for s in Appeal.STATUSES}
+
+    return jsonify({
+        "student": student.to_dict(),
+        "internship_status_counts": internship_status_counts,
+        "placement_status_counts": placement_status_counts,
+        "appeal_counts": appeal_counts,
+        "recent_internships": [i.to_dict() for i in Internship.query.filter_by(student_id=vsid).order_by(Internship.created_at.desc()).limit(10).all()],
+        "recent_placements": [p.to_dict() for p in Placement.query.filter_by(student_id=vsid).order_by(Placement.created_at.desc()).limit(10).all()],
+        "recent_appeals": [a.to_dict() for a in Appeal.query.filter_by(student_id=vsid).order_by(Appeal.created_at.desc()).limit(10).all()],
+    })
+
 
 @app.route("/api/reports/placement-summary")
 @admin_required

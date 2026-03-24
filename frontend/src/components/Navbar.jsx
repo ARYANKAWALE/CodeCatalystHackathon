@@ -48,7 +48,14 @@ export default function Navbar() {
       icon: 'bi-trophy-fill',
       label: isStudent ? 'My placements' : 'Placements',
     },
+    ...(isStudent
+      ? [
+          { to: '/appeals', icon: 'bi-send-fill', label: 'My requests' },
+          { to: '/reports/me', icon: 'bi-graph-up-arrow', label: 'My report' },
+        ]
+      : []),
     ...(isAdmin ? [{ to: '/reports', icon: 'bi-file-earmark-bar-graph-fill', label: 'Reports' }] : []),
+    ...(isAdmin ? [{ to: '/appeals', icon: 'bi-inbox-fill', label: 'Appeals' }] : []),
   ];
 
   return (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { api } from '../api';
@@ -100,6 +101,18 @@ export default function Dashboard() {
             {s.roll_number} · {s.department}
           </p>
         </div>
+
+        <div className="d-flex flex-wrap gap-2 mb-4">
+          <Link to="/appeals/new" className="btn btn-primary btn-sm">New request to company</Link>
+          <Link to="/appeals" className="btn btn-outline-secondary btn-sm">My requests</Link>
+          <Link to="/reports/me" className="btn btn-outline-secondary btn-sm">My report</Link>
+        </div>
+        {(data.appeal_counts && (data.appeal_counts.pending > 0 || data.appeal_counts.accepted > 0 || data.appeal_counts.rejected > 0)) && (
+          <div className="alert alert-info py-2 mb-4 small">
+            Appeals: {data.appeal_counts.pending ?? 0} pending, {data.appeal_counts.accepted ?? 0} accepted, {data.appeal_counts.rejected ?? 0} rejected.
+            {' '}<Link to="/appeals">View all</Link>
+          </div>
+        )}
 
         <div className="info-grid mb-4">
           <div className="info-item">
@@ -236,6 +249,15 @@ export default function Dashboard() {
             <p className="subtitle">Overview and recent activity</p>
           </div>
         </div>
+
+        {(data.pending_appeals ?? 0) > 0 && (
+          <div className="alert alert-warning border-0 shadow-sm d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+            <span>
+              <strong>{data.pending_appeals}</strong> student appeal{data.pending_appeals === 1 ? '' : 's'} awaiting review.
+            </span>
+            <Link to="/appeals?status=pending" className="btn btn-sm btn-dark">Review appeals</Link>
+          </div>
+        )}
 
         <div className="row g-3 mb-4">
           <div className="col-6 col-md-4 col-xl-2">

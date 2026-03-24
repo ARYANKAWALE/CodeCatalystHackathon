@@ -6,6 +6,8 @@ const CLASS_MAP = {
   completed: 'badge-completed',
   placed: 'badge-placed',
   rejected: 'badge-rejected',
+  pending: 'badge-pending',
+  accepted: 'badge-accepted',
 };
 
 export default function StatusBadge({ status }) {

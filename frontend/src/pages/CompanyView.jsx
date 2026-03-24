@@ -26,7 +26,9 @@ export default function CompanyView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const role = String(user?.role ?? '').toLowerCase();
+  const isAdmin = role === 'admin';
+  const isStudent = role === 'student' && user?.student_id != null;
 
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -99,16 +101,34 @@ export default function CompanyView() {
           <h2>{company.name}</h2>
           <p className="meta mb-0">{fmt(company.industry)}</p>
         </div>
-        {isAdmin && (
-          <div className="d-flex flex-wrap gap-2">
-            <Link to={`/companies/${id}/edit`} className="btn btn-primary btn-sm">
-              Edit
-            </Link>
-            <button type="button" className="btn btn-outline-danger btn-sm" onClick={handleDelete}>
-              Delete
-            </button>
-          </div>
-        )}
+        <div className="d-flex flex-wrap gap-2">
+          {isStudent && (
+            <>
+              <Link
+                to={`/appeals/new?company_id=${id}&type=internship`}
+                className="btn btn-outline-primary btn-sm"
+              >
+                Request internship
+              </Link>
+              <Link
+                to={`/appeals/new?company_id=${id}&type=placement`}
+                className="btn btn-outline-primary btn-sm"
+              >
+                Request placement
+              </Link>
+            </>
+          )}
+          {isAdmin && (
+            <>
+              <Link to={`/companies/${id}/edit`} className="btn btn-primary btn-sm">
+                Edit
+              </Link>
+              <button type="button" className="btn btn-outline-danger btn-sm" onClick={handleDelete}>
+                Delete
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="info-grid mb-4">

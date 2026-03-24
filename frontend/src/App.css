@@ -49,6 +49,8 @@
   --badge-completed-bg: #d1fae5; --badge-completed-fg: #065f46;
   --badge-placed-bg: #d1fae5; --badge-placed-fg: #065f46;
   --badge-rejected-bg: #fee2e2; --badge-rejected-fg: #991b1b;
+  --badge-pending-bg: #fef3c7; --badge-pending-fg: #92400e;
+  --badge-accepted-bg: #d1fae5; --badge-accepted-fg: #065f46;
 }
 
 /* ══════════════════════════════════════════════
@@ -94,6 +96,8 @@
   --badge-completed-bg: rgba(16, 185, 129, .2); --badge-completed-fg: #6ee7b7;
   --badge-placed-bg: rgba(16, 185, 129, .2); --badge-placed-fg: #6ee7b7;
   --badge-rejected-bg: rgba(239, 68, 68, .2); --badge-rejected-fg: #fca5a5;
+  --badge-pending-bg: rgba(245, 158, 11, .2); --badge-pending-fg: #fcd34d;
+  --badge-accepted-bg: rgba(16, 185, 129, .2); --badge-accepted-fg: #6ee7b7;
 }
 
 /* ══════════════════════════════════════════════
@@ -277,6 +281,8 @@ code { color: var(--primary-light); background: var(--primary-bg); padding: .15e
 .badge-completed { background: var(--badge-completed-bg); color: var(--badge-completed-fg); }
 .badge-placed { background: var(--badge-placed-bg); color: var(--badge-placed-fg); }
 .badge-rejected { background: var(--badge-rejected-bg); color: var(--badge-rejected-fg); }
+.badge-pending { background: var(--badge-pending-bg); color: var(--badge-pending-fg); }
+.badge-accepted { background: var(--badge-accepted-bg); color: var(--badge-accepted-fg); }
 
 /* ══════════════════════════════════════════════
    BUTTONS
