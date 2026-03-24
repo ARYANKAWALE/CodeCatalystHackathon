@@ -4,47 +4,69 @@ A full-stack web application for colleges to manage student internship and place
 
 ## Tech Stack
 
-| Layer      | Technology                          |
-|------------|-------------------------------------|
+| Layer      | Technology |
+|------------|------------|
 | Frontend   | React 19, Vite, React Router, Chart.js |
-| Backend    | Python Flask (REST API)             |
-| Database   | MySQL (MariaDB) via SQLAlchemy      |
-| Auth       | JWT (PyJWT)                         |
-| Styling    | Bootstrap 5, Bootstrap Icons        |
-| Reports    | openpyxl (Excel export)             |
+| Backend    | Python Flask (REST API), Gunicorn (production) |
+| Database   | MySQL/MariaDB or **PostgreSQL** via SQLAlchemy |
+| Auth       | JWT (PyJWT), optional email-based password reset |
+| Styling    | Bootstrap 5, Bootstrap Icons |
+| Reports    | openpyxl (Excel export) |
 
 ## Prerequisites
 
-- **Python 3.10+**
+- **Python 3.10+** (Render uses 3.12; see `render.yaml`)
 - **Node.js 18+**
-- **MySQL / MariaDB** (e.g. via XAMPP)
+- **MySQL / MariaDB** *or* **PostgreSQL** for local development
 
 ## Quick Start
 
-### 1. Start MySQL
+### 1. Database
 
-Make sure MySQL is running (e.g. start XAMPP MySQL service) and create the database:
+**MySQL / MariaDB** (e.g. XAMPP):
 
 ```sql
 CREATE DATABASE IF NOT EXISTS placetrack CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 2. Backend Setup
+**PostgreSQL:**
+
+```sql
+CREATE DATABASE placetrack;
+```
+
+Set `DATABASE_URL` accordingly (see [Database configuration](#database-configuration)).
+
+### 2. Backend setup
 
 ```bash
 cd backend
 pip install -r requirements.txt
+```
 
-# Seed sample data (optional, creates 15 students, 8 companies, etc.)
+Copy environment template and adjust values:
+
+```bash
+# Windows (PowerShell)
+Copy-Item .env.example .env
+
+# macOS / Linux
+cp .env.example .env
+```
+
+Edit `backend/.env`: mail settings and `FRONTEND_URL` are required only if you use **forgot password** (SMTP). For local API-only use, you can omit mail variables.
+
+```bash
+# Optional: seed sample data (students, companies, etc.)
 python seed_data.py
 
-# Start the API server
+# Development server
 python app.py
 ```
 
-The API runs at **http://127.0.0.1:5001**
+The API runs at **http://127.0.0.1:5001**.
 
-### 3. Frontend Setup
+### 3. Frontend setup
 
 ```bash
 cd frontend
@@ -52,93 +74,124 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:5173** in your browser.
+Open **http://localhost:5173**. Ensure `FRONTEND_URL` in the backend matches this origin when testing password reset emails.
 
-### Database Configuration
+## Database configuration
 
-By default, the app connects to MySQL as `root` with no password at `localhost`. To change this, set the `DATABASE_URL` environment variable:
+The backend reads `DATABASE_URL` from the environment (or `backend/.env` via [python-dotenv](https://pypi.org/project/python-dotenv/)).
 
-```bash
+| Engine   | Example `DATABASE_URL` |
+|----------|-------------------------|
+| MySQL    | `mysql+pymysql://user:password@localhost/placetrack` |
+| PostgreSQL | `postgresql://user:password@localhost:5432/placetrack` |
+
+**Render / Heroku-style URLs:** If the host provides `postgres://...`, the app normalizes it to `postgresql://` for SQLAlchemy automatically (`config.py`).
+
+Default when unset (local dev): `mysql+pymysql://root:@localhost/placetrack`.
+
+**Windows (CMD):**
+
+```bat
 set DATABASE_URL=mysql+pymysql://user:password@localhost/placetrack
 ```
 
-## Default Credentials
+**PowerShell:**
 
-| Role    | Username   | Password    |
-|---------|-----------|-------------|
-| Admin   | admin     | admin123    |
-| Student | student1  | student123  |
+```powershell
+$env:DATABASE_URL = "postgresql://user:password@localhost:5432/placetrack"
+```
 
-New users can self-register via the **Register** page.
+## Deploying on Render
+
+The repo includes [`render.yaml`](render.yaml) for a **web service** (`gunicorn app:app`) plus a **PostgreSQL** database. After linking the repo:
+
+1. Set `FRONTEND_URL` in the Render dashboard to your deployed frontend base URL (no trailing slash) if you use password reset mail.
+2. Configure optional SMTP env vars (`MAIL_SERVER`, `MAIL_USERNAME`, etc.) for email.
+3. `render.yaml` includes a placeholder `CORS_ORIGINS` key for documentation; the API currently allows all origins on `/api/*` via Flask-CORS. Tighten this in `app.py` if you need origin allowlists in production.
+
+On startup, the API runs lightweight schema checks (for example, password-reset columns on `users`) using dialect-appropriate SQL for PostgreSQL vs MySQL/SQLite.
+
+## Default credentials
+
+| Role    | Username  | Password   |
+|---------|-----------|------------|
+| Admin   | admin     | admin123   |
+| Student | student1  | student123 |
+
+New users can self-register via the **Register** page. Admins should change the default admin password in production.
 
 ## Modules
 
-| # | Module                  | Description                                              |
-|---|-------------------------|----------------------------------------------------------|
-| 1 | Admin Module            | JWT authentication, registration, role-based access      |
-| 2 | Student Module          | Full CRUD with department/year filters and pagination     |
-| 3 | Company Module          | Full CRUD with industry filters                          |
-| 4 | Internship Module       | Track internships with status, stipend, progress notes   |
-| 5 | Placement Module        | Track placements with packages, offer/joining dates      |
-| 6 | Search & Filter Module  | Global search across all entities                        |
-| 7 | Report Module           | Department-wise reports + Excel exports                  |
-| 8 | Admin Dashboard         | Statistics, Chart.js charts, recent activity             |
-| 9 | Student Dashboard       | Student-specific view of own internships & placements    |
+| # | Module | Description |
+|---|--------|-------------|
+| 1 | Admin module | JWT authentication, registration, role-based access |
+| 2 | Student module | CRUD with department/year filters and pagination |
+| 3 | Company module | CRUD with industry filters |
+| 4 | Internship module | Status, stipend, progress notes |
+| 5 | Placement module | Packages, offer/joining dates |
+| 6 | Search & filter | Global search across entities |
+| 7 | Report module | Department-wise reports and Excel exports |
+| 8 | Admin dashboard | Statistics, Chart.js, recent activity |
+| 9 | Student dashboard | Student view of own internships and placements |
+| 10 | Appeals | Student appeals workflow (admin accept/reject) |
+| 11 | Password security | Forgot/reset password (email), change password while logged in |
 
-## Project Structure
+## Project structure
 
 ```
+├── render.yaml             # Render Blueprint (API + Postgres)
+├── README.md
 ├── backend/
-│   ├── app.py              # Flask REST API (all endpoints)
-│   ├── config.py           # MySQL + JWT configuration
+│   ├── app.py              # Flask REST API
+│   ├── config.py           # DB URL, JWT, mail, frontend URL
 │   ├── models.py           # SQLAlchemy models
-│   ├── seed_data.py        # Sample data seeder
-│   └── requirements.txt    # Python dependencies
-│
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx         # React Router setup
-│   │   ├── App.css         # Custom styles
-│   │   ├── api.js          # API client with JWT
-│   │   ├── context/        # AuthContext (login/register/logout)
-│   │   ├── components/     # Navbar, Pagination, StatusBadge, ProtectedRoute
-│   │   └── pages/          # All page components (20+ files)
-│   ├── package.json
-│   └── vite.config.js      # Vite config with API proxy
-│
-└── README.md
+│   ├── mail_utils.py       # Optional SMTP / password-reset emails
+│   ├── seed_data.py        # Sample data
+│   ├── requirements.txt    # Python dependencies (incl. psycopg2-binary, gunicorn)
+│   ├── .env.example        # Template for local secrets (copy to .env)
+│   └── static_frontend/    # Production: built React assets (optional)
+└── frontend/
+    ├── src/
+    │   ├── App.jsx
+    │   ├── api.js
+    │   ├── context/        # AuthContext
+    │   ├── components/
+    │   └── pages/
+    ├── package.json
+    └── vite.config.js      # Dev proxy to API
 ```
 
-## API Endpoints
+## API endpoints
 
-| Method | Endpoint                        | Auth     | Description              |
-|--------|---------------------------------|----------|--------------------------|
-| POST   | /api/auth/register              | Public   | Register new user        |
-| POST   | /api/auth/login                 | Public   | Login, returns JWT       |
-| GET    | /api/auth/me                    | Token    | Current user info        |
-| GET    | /api/dashboard                  | Token    | Dashboard stats          |
-| GET    | /api/students                   | Token    | List students            |
-| POST   | /api/students                   | Admin    | Create student           |
-| GET    | /api/students/:id               | Token    | Student details          |
-| PUT    | /api/students/:id               | Admin    | Update student           |
-| DELETE | /api/students/:id               | Admin    | Delete student           |
-| GET    | /api/companies                  | Token    | List companies           |
-| POST   | /api/companies                  | Admin    | Create company           |
-| GET    | /api/companies/:id              | Token    | Company details          |
-| PUT    | /api/companies/:id              | Admin    | Update company           |
-| DELETE | /api/companies/:id              | Admin    | Delete company           |
-| GET    | /api/internships                | Token    | List internships         |
-| POST   | /api/internships                | Admin    | Create internship        |
-| GET    | /api/internships/:id            | Token    | Internship details       |
-| PUT    | /api/internships/:id            | Admin    | Update internship        |
-| DELETE | /api/internships/:id            | Admin    | Delete internship        |
-| GET    | /api/placements                 | Token    | List placements          |
-| POST   | /api/placements                 | Admin    | Create placement         |
-| GET    | /api/placements/:id             | Token    | Placement details        |
-| PUT    | /api/placements/:id             | Admin    | Update placement         |
-| DELETE | /api/placements/:id             | Admin    | Delete placement         |
-| GET    | /api/search?q=...               | Token    | Global search            |
-| GET    | /api/reports/placement-summary  | Token    | Placement report         |
-| GET    | /api/reports/internship-summary | Token    | Internship report        |
-| GET    | /api/reports/company-wise       | Token    | Company-wise report      |
-| GET    | /api/reports/export/:type       | Token    | Excel download           |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/auth/register` | Public | Register |
+| POST | `/api/auth/login` | Public | Login, returns JWT |
+| GET | `/api/auth/me` | Token | Current user |
+| POST | `/api/auth/forgot-password` | Public | Request reset email |
+| POST | `/api/auth/reset-password` | Public | Reset with token |
+| PUT | `/api/auth/password` | Token | Change password |
+| GET | `/api/dashboard` | Token | Dashboard stats |
+| GET/POST | `/api/students` | Token / Admin | List / create |
+| GET/PUT/DELETE | `/api/students/:id` | Token / Admin | Detail / update / delete |
+| GET/POST | `/api/companies` | Token / Admin | List / create |
+| GET/PUT/DELETE | `/api/companies/:id` | Token / Admin | Detail / update / delete |
+| GET/POST | `/api/internships` | Token / Admin | List / create |
+| GET/PUT/DELETE | `/api/internships/:id` | Token / Admin | Detail / update / delete |
+| GET/POST | `/api/placements` | Token / Admin | List / create |
+| GET/PUT/DELETE | `/api/placements/:id` | Token / Admin | Detail / update / delete |
+| POST | `/api/appeals` | Token | Student submit appeal |
+| GET | `/api/appeals` | Token | List appeals |
+| GET | `/api/appeals/:id` | Token | Appeal detail |
+| POST | `/api/appeals/:id/accept` | Admin | Accept |
+| POST | `/api/appeals/:id/reject` | Admin | Reject |
+| GET | `/api/search?q=...` | Token | Global search |
+| GET | `/api/reports/me` | Token | Student report |
+| GET | `/api/reports/placement-summary` | Token | Placement report |
+| GET | `/api/reports/internship-summary` | Token | Internship report |
+| GET | `/api/reports/company-wise` | Token | Company-wise report |
+| GET | `/api/reports/export/:type` | Token | Excel download |
+| GET | `/api/options/students` | Token | Dropdown data |
+| GET | `/api/options/companies` | Token | Dropdown data |
+
+Static routes serve `static_frontend/` when present (useful for same-origin API + UI deploys).
