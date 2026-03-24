@@ -111,12 +111,21 @@ body {
 }
 
 a { color: var(--primary); }
-a:hover { color: var(--primary-dark); }
+a:hover { color: var(--primary-light); }
 
 ::selection {
   background: var(--primary);
   color: #fff;
 }
+
+.text-primary { color: var(--primary) !important; }
+.text-muted { color: var(--text-muted) !important; }
+.text-warning { color: var(--warning) !important; }
+.text-success { color: var(--success) !important; }
+.text-danger { color: var(--danger) !important; }
+.text-info { color: var(--info) !important; }
+.border-bottom { border-color: var(--border) !important; }
+code { color: var(--primary-light); background: var(--primary-bg); padding: .15em .35em; border-radius: 4px; font-size: .85em; }
 
 /* ══════════════════════════════════════════════
    NAVBAR
