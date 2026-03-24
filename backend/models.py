@@ -62,6 +62,8 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False, default="admin")
     student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    password_reset_token_hash = db.Column(db.String(128), nullable=True)
+    password_reset_expires = db.Column(db.DateTime, nullable=True)
 
     student = db.relationship("Student", backref="user_account", uselist=False)
 

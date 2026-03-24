@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -7,6 +7,8 @@ export default function Login() {
   const { user, loading, login } = useAuth();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+  const resetOk = location.state?.passwordReset;
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -45,12 +47,17 @@ export default function Login() {
           <p className="auth-subtitle">Welcome back to PlaceTrack</p>
         </div>
 
+        {resetOk && (
+          <div className="alert alert-success py-2 fade-in">
+            Your password was updated. Sign in with your new password.
+          </div>
+        )}
         {error && <div className="alert alert-danger py-2 fade-in">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="mb-3">
-            <label className="form-label" htmlFor="login-u">Username</label>
-            <input id="login-u" className="form-control form-control-lg" placeholder="username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
+            <label className="form-label" htmlFor="login-u">Username or email</label>
+            <input id="login-u" className="form-control form-control-lg" placeholder="username or email" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
           </div>
           <div className="mb-3">
             <label className="form-label" htmlFor="login-p">Password</label>
@@ -59,6 +66,9 @@ export default function Login() {
               <button type="button" className="btn btn-outline-secondary pw-toggle" onClick={() => setShowPw(!showPw)} tabIndex={-1}>
                 <i className={`bi ${showPw ? 'bi-eye-slash' : 'bi-eye'}`} />
               </button>
+            </div>
+            <div className="text-end mt-1">
+              <Link to="/forgot-password" className="small">Forgot password?</Link>
             </div>
           </div>
 

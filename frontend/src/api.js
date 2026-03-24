@@ -10,6 +10,18 @@ function apiUrl(path) {
   return `${base}${p}`;
 }
 
+function gatewayErrorMessage(status) {
+  if (status === 502 || status === 503 || status === 504) {
+    return (
+      `Cannot reach the API server (HTTP ${status}). ` +
+      'If you run the app locally: start the Flask backend on port 5001 (e.g. `python app.py` in backend/) ' +
+      'and keep `VITE_API_URL=/api` so Vite proxies to it. ' +
+      'If you use a hosted API, confirm it is awake and that `VITE_API_URL` matches your API base URL including `/api`.'
+    );
+  }
+  return null;
+}
+
 async function readErrorMessage(res) {
   const text = await res.text();
   try {
@@ -19,6 +31,8 @@ async function readErrorMessage(res) {
   } catch {
     /* not JSON */
   }
+  const gateway = gatewayErrorMessage(res.status);
+  if (gateway) return gateway;
   const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 120);
   if (res.status === 404) {
     return snippet
@@ -38,9 +52,36 @@ async function request(url, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(apiUrl(url), { ...options, headers });
+  let res;
+  try {
+    res = await fetch(apiUrl(url), { ...options, headers });
+  } catch (e) {
+    const msg =
+      e && typeof e.message === 'string' && e.message
+        ? e.message
+        : 'Network error';
+    throw new Error(
+      `${msg}. Check that the backend is running and the API URL is correct (dev: backend on port 5001, frontend using /api via Vite proxy).`,
+    );
+  }
 
   if (res.status === 401) {
+    const method = String(options.method || 'GET').toUpperCase();
+    const publicAuthPost =
+      method === 'POST' &&
+      (url.includes('auth/login') ||
+        url.includes('auth/forgot-password') ||
+        url.includes('auth/reset-password'));
+    const ct = res.headers.get('content-type') || '';
+    if (publicAuthPost) {
+      if (ct.includes('application/json')) {
+        const data = await res.json();
+        const errMsg =
+          (typeof data?.error === 'string' && data.error) || 'Invalid username or password';
+        throw new Error(errMsg);
+      }
+      throw new Error('Invalid username or password');
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '/login';
@@ -53,8 +94,10 @@ async function request(url, options = {}) {
   if (contentType.includes('application/json')) {
     const data = await res.json();
     if (!res.ok) {
+      const gw = gatewayErrorMessage(res.status);
       throw new Error(
-        (typeof data?.error === 'string' && data.error) ||
+        gw ||
+          (typeof data?.error === 'string' && data.error) ||
           (typeof data?.message === 'string' && data.message) ||
           `Request failed (HTTP ${res.status})`,
       );

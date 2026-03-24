@@ -125,6 +125,11 @@ export default function Navbar() {
               <li><span className="dropdown-item-text text-muted small">Signed in as <strong>{user.username}</strong> ({user.role})</span></li>
               <li><hr className="dropdown-divider" /></li>
               <li>
+                <Link className="dropdown-item" to="/account/password" onClick={closeMenu}>
+                  <i className="bi bi-key me-2" />Change password
+                </Link>
+              </li>
+              <li>
                 <button className="dropdown-item" onClick={() => { logout(); navigate('/login'); closeMenu(); }}>
                   <i className="bi bi-box-arrow-right me-2" />Logout
                 </button>

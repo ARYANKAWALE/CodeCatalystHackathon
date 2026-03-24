@@ -1,14 +1,18 @@
+import hashlib
 import io
+import logging
 import os
+import secrets
 from datetime import datetime, date, timedelta, timezone
 from functools import wraps
 
 import jwt
 from flask import Flask, jsonify, request, send_file, send_from_directory, g
 from flask_cors import CORS
-from sqlalchemy import false as sql_false, inspect as sa_inspect
+from sqlalchemy import false as sql_false, inspect as sa_inspect, text
 
 from config import Config
+from mail_utils import schedule_plain_email
 from models import db, User, Student, Company, Internship, Placement, Appeal
 
 STATIC_FOLDER = os.path.join(os.path.dirname(__file__), "static_frontend")
@@ -18,6 +22,8 @@ app.config.from_object(Config)
 
 CORS(app, resources={r"/api/*": {"origins": "*"}}, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization"])
 db.init_app(app)
+
+logging.getLogger("mail_utils").setLevel(logging.INFO)
 
 # ── JWT helpers ────────────────────────────────────────────────────────────────
 
@@ -81,6 +87,37 @@ def student_data_scope():
     if current_user_role() != "student":
         return (False, None)
     return (True, u.student_id)
+
+
+def student_primary_email(user):
+    """Registered email for notifications: student profile email when linked, else account email."""
+    if (getattr(user, "role", None) or "").strip().lower() != "student":
+        return None
+    if user.student_id:
+        stu = db.session.get(Student, user.student_id)
+        if stu and (stu.email or "").strip():
+            return stu.email.strip()
+    return (user.email or "").strip() or None
+
+
+def user_account_email_for_reset(user):
+    """Always use the account email for password reset (login identity)."""
+    return (user.email or "").strip() or None
+
+
+def hash_password_reset_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+FORGOT_PASSWORD_MESSAGE = (
+    "If an account exists for that email, you will receive a link to reset your password shortly."
+)
+
+
+def _validate_new_password(password: str):
+    if not password or len(password) < 6:
+        return "Password must be at least 6 characters"
+    return None
 
 
 def parse_date(val):
@@ -148,6 +185,26 @@ def register():
         return jsonify({"error": str(e)}), 500
 
     token = create_token(user)
+    role_lc = (user.role or "").strip().lower()
+    if role_lc == "student" and user.student_id:
+        stu = db.session.get(Student, user.student_id)
+        greet = f"Hello {stu.name},\n\n" if stu else "Hello,\n\n"
+    else:
+        greet = "Hello,\n\n"
+    role_label = "student" if role_lc == "student" else "administrator"
+    schedule_plain_email(
+        app,
+        user.email.strip(),
+        "PlaceTrack — Welcome, your account was created",
+        (
+            f"{greet}"
+            f"Your PlaceTrack account is ready.\n"
+            f"Username: {username}\n"
+            f"Role: {role_label}\n\n"
+            "You can sign in anytime using your username and password.\n\n"
+            "— PlaceTrack"
+        ),
+    )
     return jsonify({"token": token, "user": user.to_dict()}), 201
 
 
@@ -157,9 +214,24 @@ def login():
     username = data.get("username", "").strip()
     password = data.get("password", "")
     user = User.query.filter_by(username=username).first()
+    if not user and "@" in username:
+        user = User.query.filter_by(email=username).first()
     if not user or not user.check_password(password):
         return jsonify({"error": "Invalid username or password"}), 401
     token = create_token(user)
+    to_addr = student_primary_email(user)
+    if to_addr:
+        when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        schedule_plain_email(
+            app,
+            to_addr,
+            "PlaceTrack — You signed in",
+            (
+                f"Hello,\n\nYour PlaceTrack account ({user.username}) was used to sign in at {when}.\n\n"
+                "If this was not you, secure your account by changing your password.\n\n"
+                "— PlaceTrack"
+            ),
+        )
     return jsonify({"token": token, "user": user.to_dict()})
 
 
@@ -167,6 +239,100 @@ def login():
 @token_required
 def auth_me():
     return jsonify({"user": g.current_user.to_dict()})
+
+
+@app.route("/api/auth/forgot-password", methods=["POST"])
+def auth_forgot_password():
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        return jsonify({"error": "A valid email address is required"}), 400
+
+    user = User.query.filter(db.func.lower(User.email) == email).first()
+    if user:
+        raw = secrets.token_urlsafe(32)
+        user.password_reset_token_hash = hash_password_reset_token(raw)
+        mins = max(5, int(app.config.get("PASSWORD_RESET_EXPIRATION_MINUTES") or 60))
+        user.password_reset_expires = datetime.now(timezone.utc) + timedelta(minutes=mins)
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+
+        base = (app.config.get("FRONTEND_URL") or "http://localhost:5173").rstrip("/")
+        link = f"{base}/reset-password?token={raw}"
+        to_addr = user_account_email_for_reset(user)
+        if to_addr:
+            schedule_plain_email(
+                app,
+                to_addr,
+                "PlaceTrack — Reset your password",
+                (
+                    f"Hello,\n\n"
+                    f"We received a request to reset the password for PlaceTrack account {user.username}.\n\n"
+                    f"Open this link to choose a new password (expires in {mins} minutes):\n{link}\n\n"
+                    "If you did not request this, you can ignore this email.\n\n"
+                    "— PlaceTrack"
+                ),
+            )
+
+    return jsonify({"message": FORGOT_PASSWORD_MESSAGE})
+
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+def auth_reset_password():
+    data = request.get_json() or {}
+    raw_token = (data.get("token") or "").strip()
+    password = data.get("password", "")
+    err = _validate_new_password(password)
+    if err:
+        return jsonify({"error": err}), 400
+    if not raw_token:
+        return jsonify({"error": "Reset token is required"}), 400
+
+    token_hash = hash_password_reset_token(raw_token)
+    user = User.query.filter_by(password_reset_token_hash=token_hash).first()
+    now = datetime.now(timezone.utc)
+    if not user or not user.password_reset_expires:
+        return jsonify({"error": "Invalid or expired reset link"}), 400
+    exp = user.password_reset_expires
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp < now:
+        return jsonify({"error": "Invalid or expired reset link"}), 400
+
+    user.set_password(password)
+    user.password_reset_token_hash = None
+    user.password_reset_expires = None
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"message": "Your password has been updated. You can sign in with your new password."})
+
+
+@app.route("/api/auth/password", methods=["PUT"])
+@token_required
+def auth_change_password():
+    data = request.get_json() or {}
+    current = data.get("current_password", "")
+    new_pw = data.get("new_password", "")
+    err = _validate_new_password(new_pw)
+    if err:
+        return jsonify({"error": err}), 400
+    if not g.current_user.check_password(current):
+        return jsonify({"error": "Current password is incorrect"}), 400
+    g.current_user.set_password(new_pw)
+    g.current_user.password_reset_token_hash = None
+    g.current_user.password_reset_expires = None
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"message": "Password updated successfully."})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -712,6 +878,25 @@ def appeals_create():
     db.session.add(appeal)
     try:
         db.session.commit()
+        student = db.session.get(Student, vsid)
+        company = db.session.get(Company, cid)
+        if student and (student.email or "").strip():
+            kind = "internship" if appeal_type == "internship" else "placement"
+            cname = company.name if company else "the company"
+            schedule_plain_email(
+                app,
+                student.email.strip(),
+                f"PlaceTrack — {kind.title()} request received",
+                (
+                    f"Hello {student.name},\n\n"
+                    f"We received your {kind} request for {cname}.\n"
+                    f"Title: {title}\n"
+                    f"Request ID: {appeal.id}\n"
+                    "Status: pending admin review.\n\n"
+                    "You will be notified when the admin updates your request.\n\n"
+                    "— PlaceTrack"
+                ),
+            )
         return jsonify(appeal.to_dict()), 201
     except Exception as e:
         db.session.rollback()
@@ -807,6 +992,21 @@ def appeals_accept(id):
         appeal.reviewed_at = now
         appeal.reviewer_user_id = g.current_user.id
         db.session.commit()
+        stu = appeal.student
+        if stu and (stu.email or "").strip():
+            kind = appeal.appeal_type
+            cname = appeal.company.name if appeal.company else "the company"
+            schedule_plain_email(
+                app,
+                stu.email.strip(),
+                f"PlaceTrack — {kind.title()} request accepted",
+                (
+                    f"Hello {stu.name},\n\n"
+                    f"Your {kind} request for {cname} ({appeal.title}) has been accepted.\n"
+                    f"A corresponding record was added to your {kind}s.\n\n"
+                    "— PlaceTrack"
+                ),
+            )
         return jsonify(appeal.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -829,6 +1029,21 @@ def appeals_reject(id):
     appeal.reviewer_user_id = g.current_user.id
     try:
         db.session.commit()
+        stu = appeal.student
+        if stu and (stu.email or "").strip():
+            kind = appeal.appeal_type
+            cname = appeal.company.name if appeal.company else "the company"
+            note_line = f"\nNote from admin: {note}\n" if note else ""
+            schedule_plain_email(
+                app,
+                stu.email.strip(),
+                f"PlaceTrack — {kind.title()} request update",
+                (
+                    f"Hello {stu.name},\n\n"
+                    f"Your {kind} request for {cname} ({appeal.title}) was not approved.{note_line}\n"
+                    "— PlaceTrack"
+                ),
+            )
         return jsonify(appeal.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -1073,16 +1288,42 @@ def init_db():
             print("Default admin created: admin / admin123")
 
 
-def _ensure_db_schema():
-    """Create all tables; if appeals was added after first deploy, create it explicitly."""
-    db.create_all()
+def _ensure_appeals_table():
     try:
         inspector = sa_inspect(db.engine)
         if "appeals" not in inspector.get_table_names():
             Appeal.__table__.create(db.engine, checkfirst=True)
             print("PlaceTrack: created missing table 'appeals'")
     except Exception as ex:
-        print("PlaceTrack: schema check:", ex)
+        print("PlaceTrack: appeals schema check:", ex)
+
+
+def _ensure_users_password_reset_columns():
+    """Add password-reset columns to existing MySQL/SQLite users table (create_all does not alter old tables)."""
+    inspector = sa_inspect(db.engine)
+    users_table = next((t for t in inspector.get_table_names() if t.lower() == "users"), None)
+    if not users_table:
+        return
+    qtbl = db.engine.dialect.identifier_preparer.quote(users_table)
+    col_names = {c["name"] for c in inspector.get_columns(users_table)}
+    if "password_reset_token_hash" not in col_names:
+        with db.engine.begin() as conn:
+            conn.execute(
+                text(f"ALTER TABLE {qtbl} ADD COLUMN password_reset_token_hash VARCHAR(128) NULL")
+            )
+        print("PlaceTrack: added column users.password_reset_token_hash")
+        col_names = {c["name"] for c in sa_inspect(db.engine).get_columns(users_table)}
+    if "password_reset_expires" not in col_names:
+        with db.engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {qtbl} ADD COLUMN password_reset_expires DATETIME NULL"))
+        print("PlaceTrack: added column users.password_reset_expires")
+
+
+def _ensure_db_schema():
+    """Create all tables; migrate legacy schemas."""
+    db.create_all()
+    _ensure_appeals_table()
+    _ensure_users_password_reset_columns()
 
 
 with app.app_context():

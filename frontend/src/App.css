@@ -202,6 +202,20 @@ code { color: var(--primary-light); background: var(--primary-bg); padding: .15e
    ══════════════════════════════════════════════ */
 .main-content { padding: 1.5rem 0; min-height: calc(100vh - 65px); }
 
+/* Single-column forms centered in the viewport below the navbar */
+.page-centered {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 65px - 3rem);
+  padding: 0.5rem 0 1.5rem;
+}
+.page-centered-inner {
+  width: 100%;
+  max-width: 480px;
+}
+
 /* ══════════════════════════════════════════════
    PAGE HEADER
    ══════════════════════════════════════════════ */

@@ -7,6 +7,9 @@ import StudentViewAccess from './components/StudentViewAccess';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import ChangePassword from './pages/ChangePassword';
 import Dashboard from './pages/Dashboard';
 import StudentList from './pages/StudentList';
 import StudentForm from './pages/StudentForm';
@@ -40,6 +43,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<AppLayout />} />
       </Routes>
     </AuthProvider>
@@ -55,6 +60,7 @@ function AppLayout() {
         <div className="container-fluid px-4">
           <Routes>
             <Route path="/dashboard" element={<P><Dashboard /></P>} />
+            <Route path="/account/password" element={<P><ChangePassword /></P>} />
             <Route path="/students" element={<P><StudentList /></P>} />
             <Route path="/students/add" element={<P><StudentForm /></P>} />
             <Route path="/students/:id/edit" element={<P><StudentForm /></P>} />
