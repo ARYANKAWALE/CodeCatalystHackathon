@@ -1,18 +1,29 @@
 import io
+import os
 from datetime import datetime, date, timedelta, timezone
 from functools import wraps
 
 import jwt
-from flask import Flask, jsonify, request, send_file, g
+from flask import Flask, jsonify, request, send_file, send_from_directory, g
 from flask_cors import CORS
 
 from config import Config
 from models import db, User, Student, Company, Internship, Placement
 
-app = Flask(__name__)
+STATIC_FOLDER = os.path.join(os.path.dirname(__file__), "static_frontend")
+
+app = Flask(__name__, static_folder=STATIC_FOLDER, static_url_path="")
 app.config.from_object(Config)
 
-CORS(app, supports_credentials=True, origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"])
+allowed_origins = [
+    "http://localhost:5173", "http://127.0.0.1:5173",
+    "http://localhost:5174", "http://127.0.0.1:5174",
+    "http://localhost:5175", "http://127.0.0.1:5175",
+]
+extra = os.environ.get("CORS_ORIGINS", "")
+if extra:
+    allowed_origins.extend([o.strip() for o in extra.split(",") if o.strip()])
+CORS(app, supports_credentials=True, origins=allowed_origins)
 db.init_app(app)
 
 # ── JWT helpers ────────────────────────────────────────────────────────────────
@@ -772,6 +783,22 @@ def options_companies():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# SERVE REACT FRONTEND (production)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_frontend(path):
+    full = os.path.join(STATIC_FOLDER, path)
+    if path and os.path.isfile(full):
+        return send_from_directory(STATIC_FOLDER, path)
+    index = os.path.join(STATIC_FOLDER, "index.html")
+    if os.path.isfile(index):
+        return send_from_directory(STATIC_FOLDER, "index.html")
+    return jsonify({"message": "PlaceTrack API is running. Deploy the frontend to static_frontend/."}), 200
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # INIT & RUN
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -785,6 +812,14 @@ def init_db():
             db.session.commit()
             print("Default admin created: admin / admin123")
 
+
+with app.app_context():
+    db.create_all()
+    if not User.query.filter_by(username="admin").first():
+        admin = User(username="admin", email="admin@placetrack.edu", role="admin")
+        admin.set_password("admin123")
+        db.session.add(admin)
+        db.session.commit()
 
 if __name__ == "__main__":
     init_db()
