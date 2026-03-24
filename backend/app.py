@@ -6,6 +6,7 @@ from functools import wraps
 import jwt
 from flask import Flask, jsonify, request, send_file, send_from_directory, g
 from flask_cors import CORS
+from sqlalchemy import false as sql_false
 
 from config import Config
 from models import db, User, Student, Company, Internship, Placement
@@ -60,6 +61,14 @@ def admin_required(f):
             return jsonify({"error": "Admin access required"}), 403
         return f(*args, **kwargs)
     return decorated
+
+
+def student_data_scope():
+    """(is_student_role, student_id). Admins get (False, None). Students without a linked row get (True, None)."""
+    u = g.current_user
+    if u.role != "student":
+        return (False, None)
+    return (True, u.student_id)
 
 
 def parse_date(val):
@@ -212,6 +221,8 @@ def dashboard():
 @app.route("/api/students")
 @token_required
 def students_list():
+    if g.current_user.role == "student":
+        return jsonify({"error": "Admin access required"}), 403
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 15, type=int)
     department = request.args.get("department", "")
@@ -268,6 +279,9 @@ def students_create():
 @app.route("/api/students/<int:id>")
 @token_required
 def students_get(id):
+    is_stu, vsid = student_data_scope()
+    if is_stu and (not vsid or id != vsid):
+        return jsonify({"error": "Forbidden"}), 403
     student = db.session.get(Student, id)
     if not student:
         return jsonify({"error": "Student not found"}), 404
@@ -370,6 +384,16 @@ def companies_get(id):
     company = db.session.get(Company, id)
     if not company:
         return jsonify({"error": "Company not found"}), 404
+    is_stu, vsid = student_data_scope()
+    if is_stu:
+        d = company.to_dict(include_relations=False)
+        if vsid:
+            d["internships"] = [i.to_dict() for i in company.internships if i.student_id == vsid]
+            d["placements"] = [p.to_dict() for p in company.placements if p.student_id == vsid]
+        else:
+            d["internships"] = []
+            d["placements"] = []
+        return jsonify(d)
     return jsonify(company.to_dict(include_relations=True))
 
 
@@ -415,6 +439,9 @@ def internships_list():
     company_id = request.args.get("company_id", "")
 
     q = Internship.query
+    is_stu, vsid = student_data_scope()
+    if is_stu:
+        q = q.filter_by(student_id=vsid) if vsid else q.filter(sql_false())
     if status:
         q = q.filter_by(status=status)
     if company_id:
@@ -465,6 +492,9 @@ def internships_get(id):
     internship = db.session.get(Internship, id)
     if not internship:
         return jsonify({"error": "Internship not found"}), 404
+    is_stu, vsid = student_data_scope()
+    if is_stu and (not vsid or internship.student_id != vsid):
+        return jsonify({"error": "Forbidden"}), 403
     return jsonify(internship.to_dict())
 
 
@@ -522,6 +552,9 @@ def placements_list():
     company_id = request.args.get("company_id", "")
 
     q = Placement.query
+    is_stu, vsid = student_data_scope()
+    if is_stu:
+        q = q.filter_by(student_id=vsid) if vsid else q.filter(sql_false())
     if status:
         q = q.filter_by(status=status)
     if company_id:
@@ -570,6 +603,9 @@ def placements_get(id):
     placement = db.session.get(Placement, id)
     if not placement:
         return jsonify({"error": "Placement not found"}), 404
+    is_stu, vsid = student_data_scope()
+    if is_stu and (not vsid or placement.student_id != vsid):
+        return jsonify({"error": "Forbidden"}), 403
     return jsonify(placement.to_dict())
 
 
@@ -625,22 +661,37 @@ def search():
         return jsonify({"students": [], "companies": [], "internships": [], "placements": []})
 
     like = f"%{q}%"
-    students = [s.to_dict() for s in Student.query.filter(
-        db.or_(Student.name.ilike(like), Student.roll_number.ilike(like),
-               Student.email.ilike(like), Student.department.ilike(like), Student.skills.ilike(like))
-    ).limit(20).all()]
+    is_stu, vsid = student_data_scope()
+
+    if not is_stu:
+        students = [s.to_dict() for s in Student.query.filter(
+            db.or_(Student.name.ilike(like), Student.roll_number.ilike(like),
+                   Student.email.ilike(like), Student.department.ilike(like), Student.skills.ilike(like))
+        ).limit(20).all()]
+    else:
+        students = []
 
     companies = [c.to_dict() for c in Company.query.filter(
         db.or_(Company.name.ilike(like), Company.industry.ilike(like), Company.contact_person.ilike(like))
     ).limit(20).all()]
 
-    internships = [i.to_dict() for i in Internship.query.join(Student).join(Company).filter(
+    iq = Internship.query.join(Student).join(Company).filter(
         db.or_(Internship.title.ilike(like), Student.name.ilike(like), Company.name.ilike(like))
-    ).limit(20).all()]
+    )
+    if is_stu and vsid:
+        iq = iq.filter(Internship.student_id == vsid)
+    elif is_stu:
+        iq = iq.filter(sql_false())
+    internships = [i.to_dict() for i in iq.limit(20).all()]
 
-    placements = [p.to_dict() for p in Placement.query.join(Student).join(Company).filter(
+    pq = Placement.query.join(Student).join(Company).filter(
         db.or_(Placement.role.ilike(like), Student.name.ilike(like), Company.name.ilike(like))
-    ).limit(20).all()]
+    )
+    if is_stu and vsid:
+        pq = pq.filter(Placement.student_id == vsid)
+    elif is_stu:
+        pq = pq.filter(sql_false())
+    placements = [p.to_dict() for p in pq.limit(20).all()]
 
     return jsonify({"students": students, "companies": companies,
                     "internships": internships, "placements": placements})
@@ -651,7 +702,7 @@ def search():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/api/reports/placement-summary")
-@token_required
+@admin_required
 def report_placement_summary():
     departments = db.session.query(Student.department).distinct().order_by(Student.department).all()
     rows = []
@@ -671,7 +722,7 @@ def report_placement_summary():
 
 
 @app.route("/api/reports/internship-summary")
-@token_required
+@admin_required
 def report_internship_summary():
     departments = db.session.query(Student.department).distinct().order_by(Student.department).all()
     rows = []
@@ -690,7 +741,7 @@ def report_internship_summary():
 
 
 @app.route("/api/reports/company-wise")
-@token_required
+@admin_required
 def report_company_wise():
     companies = Company.query.order_by(Company.name).all()
     rows = []
@@ -709,7 +760,7 @@ def report_company_wise():
 
 
 @app.route("/api/reports/export/<report_type>")
-@token_required
+@admin_required
 def report_export(report_type):
     from openpyxl import Workbook
     wb = Workbook()
@@ -763,6 +814,14 @@ def report_export(report_type):
 @app.route("/api/options/students")
 @token_required
 def options_students():
+    is_stu, vsid = student_data_scope()
+    if is_stu:
+        if not vsid:
+            return jsonify([])
+        s = db.session.get(Student, vsid)
+        if not s:
+            return jsonify([])
+        return jsonify([{"id": s.id, "name": s.name, "roll_number": s.roll_number}])
     students = Student.query.order_by(Student.name).all()
     return jsonify([{"id": s.id, "name": s.name, "roll_number": s.roll_number} for s in students])
 

@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
+import StudentViewAccess from './components/StudentViewAccess';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -55,22 +57,22 @@ function AppLayout() {
             <Route path="/students/:id/edit" element={<P><StudentForm /></P>} />
             <Route path="/students/:id" element={<P><StudentView /></P>} />
             <Route path="/companies" element={<P><CompanyList /></P>} />
-            <Route path="/companies/add" element={<P><CompanyForm /></P>} />
-            <Route path="/companies/:id/edit" element={<P><CompanyForm /></P>} />
+            <Route path="/companies/add" element={<P><AdminRoute><CompanyForm /></AdminRoute></P>} />
+            <Route path="/companies/:id/edit" element={<P><AdminRoute><CompanyForm /></AdminRoute></P>} />
             <Route path="/companies/:id" element={<P><CompanyView /></P>} />
             <Route path="/internships" element={<P><InternshipList /></P>} />
-            <Route path="/internships/add" element={<P><InternshipForm /></P>} />
-            <Route path="/internships/:id/edit" element={<P><InternshipForm /></P>} />
+            <Route path="/internships/add" element={<P><AdminRoute><InternshipForm /></AdminRoute></P>} />
+            <Route path="/internships/:id/edit" element={<P><AdminRoute><InternshipForm /></AdminRoute></P>} />
             <Route path="/internships/:id" element={<P><InternshipView /></P>} />
             <Route path="/placements" element={<P><PlacementList /></P>} />
-            <Route path="/placements/add" element={<P><PlacementForm /></P>} />
-            <Route path="/placements/:id/edit" element={<P><PlacementForm /></P>} />
+            <Route path="/placements/add" element={<P><AdminRoute><PlacementForm /></AdminRoute></P>} />
+            <Route path="/placements/:id/edit" element={<P><AdminRoute><PlacementForm /></AdminRoute></P>} />
             <Route path="/placements/:id" element={<P><PlacementView /></P>} />
             <Route path="/search" element={<P><SearchResults /></P>} />
-            <Route path="/reports" element={<P><Reports /></P>} />
-            <Route path="/reports/placement-summary" element={<P><PlacementSummary /></P>} />
-            <Route path="/reports/internship-summary" element={<P><InternshipSummary /></P>} />
-            <Route path="/reports/company-wise" element={<P><CompanyWiseReport /></P>} />
+            <Route path="/reports" element={<P><AdminRoute><Reports /></AdminRoute></P>} />
+            <Route path="/reports/placement-summary" element={<P><AdminRoute><PlacementSummary /></AdminRoute></P>} />
+            <Route path="/reports/internship-summary" element={<P><AdminRoute><InternshipSummary /></AdminRoute></P>} />
+            <Route path="/reports/company-wise" element={<P><AdminRoute><CompanyWiseReport /></AdminRoute></P>} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

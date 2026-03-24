@@ -1,9 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
+import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 
 export default function SearchResults() {
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const q = useMemo(() => (searchParams.get('q') || '').trim(), [searchParams]);
 
@@ -37,7 +39,8 @@ export default function SearchResults() {
     };
   }, [q]);
 
-  const students = data?.students ?? [];
+  const showStudentResults = user?.role === 'admin';
+  const students = showStudentResults ? (data?.students ?? []) : [];
   const companies = data?.companies ?? [];
   const internships = data?.internships ?? [];
   const placements = data?.placements ?? [];
@@ -70,7 +73,9 @@ export default function SearchResults() {
                 Query: <strong>{q}</strong>
               </>
             ) : (
-              'Enter a search query to find students, companies, internships, and placements.'
+              user?.role === 'admin'
+                ? 'Enter a search query to find students, companies, internships, and placements.'
+                : 'Enter a search query to find companies, internships, and placements.'
             )}
           </p>
         </div>
@@ -92,7 +97,7 @@ export default function SearchResults() {
         </div>
       )}
 
-      {students.length > 0 && (
+      {showStudentResults && students.length > 0 && (
         <div className="card border-0 shadow-sm mb-4">
           <div className="card-header">Students</div>
           <div className="card-body p-0">

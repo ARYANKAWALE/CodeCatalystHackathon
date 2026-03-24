@@ -29,11 +29,16 @@ export default function Navbar() {
 
   const navItems = [
     { to: '/dashboard', icon: 'bi-grid-1x2-fill', label: 'Dashboard' },
-    { to: '/students', icon: 'bi-people-fill', label: 'Students' },
+    ...(user.role === 'student' && user.student_id != null
+      ? [{ to: `/students/${user.student_id}`, icon: 'bi-person-badge', label: 'My profile' }]
+      : []),
+    ...(user.role === 'admin' ? [{ to: '/students', icon: 'bi-people-fill', label: 'Students' }] : []),
     { to: '/companies', icon: 'bi-building', label: 'Companies' },
     { to: '/internships', icon: 'bi-briefcase-fill', label: 'Internships' },
     { to: '/placements', icon: 'bi-trophy-fill', label: 'Placements' },
-    { to: '/reports', icon: 'bi-file-earmark-bar-graph-fill', label: 'Reports' },
+    ...(user.role === 'admin'
+      ? [{ to: '/reports', icon: 'bi-file-earmark-bar-graph-fill', label: 'Reports' }]
+      : []),
   ];
 
   return (
