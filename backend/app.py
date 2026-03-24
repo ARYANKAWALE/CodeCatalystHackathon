@@ -1299,7 +1299,7 @@ def _ensure_appeals_table():
 
 
 def _ensure_users_password_reset_columns():
-    """Add password-reset columns to existing MySQL/SQLite users table (create_all does not alter old tables)."""
+    """Add password-reset columns to existing DBs (create_all does not alter old tables)."""
     inspector = sa_inspect(db.engine)
     users_table = next((t for t in inspector.get_table_names() if t.lower() == "users"), None)
     if not users_table:
@@ -1314,8 +1314,10 @@ def _ensure_users_password_reset_columns():
         print("PlaceTrack: added column users.password_reset_token_hash")
         col_names = {c["name"] for c in sa_inspect(db.engine).get_columns(users_table)}
     if "password_reset_expires" not in col_names:
+        # PostgreSQL has no DATETIME; use TIMESTAMP (matches SQLAlchemy DateTime on PG).
+        expires_type = "TIMESTAMP" if db.engine.dialect.name == "postgresql" else "DATETIME"
         with db.engine.begin() as conn:
-            conn.execute(text(f"ALTER TABLE {qtbl} ADD COLUMN password_reset_expires DATETIME NULL"))
+            conn.execute(text(f"ALTER TABLE {qtbl} ADD COLUMN password_reset_expires {expires_type} NULL"))
         print("PlaceTrack: added column users.password_reset_expires")
 
 
