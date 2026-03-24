@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import AuthBackground from '../components/AuthBackground';
 
 const DEPARTMENTS = ['Computer Science', 'Electronics', 'Mechanical', 'Information Technology', 'Civil', 'Electrical'];
 
@@ -52,24 +53,26 @@ export default function Register() {
 
   return (
     <div className="login-wrapper">
+      <AuthBackground />
+
       <button
         className="theme-toggle position-fixed"
-        style={{ top: '1.5rem', right: '1.5rem', zIndex: 10, background: 'rgba(255,255,255,.15)', border: '1px solid rgba(255,255,255,.2)', color: '#fff' }}
-        onClick={toggle} title={dark ? 'Light mode' : 'Dark mode'}
+        style={{ top: '1.5rem', right: '1.5rem', zIndex: 10, background: 'rgba(255,255,255,.1)', border: '1px solid rgba(255,255,255,.15)', color: '#fff', backdropFilter: 'blur(8px)' }}
+        onClick={toggle}
       >
         <i className={`bi ${dark ? 'bi-sun-fill' : 'bi-moon-fill'}`} />
       </button>
 
-      <div className="login-card" style={{ maxWidth: 500 }}>
+      <div className="login-card glass-card" style={{ maxWidth: 520 }}>
         <div className="text-center mb-4">
-          <div className="brand-icon mx-auto mb-3" style={{ width: 56, height: 56, fontSize: '1.5rem' }}>
+          <div className="brand-icon mx-auto mb-3" style={{ width: 60, height: 60, fontSize: '1.6rem', boxShadow: '0 4px 20px rgba(79,70,229,.3)' }}>
             <i className="bi bi-mortarboard-fill" />
           </div>
-          <h2>Create Account</h2>
+          <h2 style={{ fontSize: '1.65rem' }}>Create Account</h2>
           <p className="subtitle mb-0">Join PlaceTrack today</p>
         </div>
 
-        {error && <div className="alert alert-danger py-2">{error}</div>}
+        {error && <div className="alert alert-danger py-2 fade-in">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="mb-3">
@@ -77,7 +80,7 @@ export default function Register() {
             <div className="d-flex gap-2">
               {['admin', 'student'].map((r) => (
                 <button key={r} type="button"
-                  className={`btn flex-fill ${role === r ? 'btn-primary' : 'btn-outline-secondary'}`}
+                  className={`btn flex-fill ${role === r ? 'btn-primary btn-glow' : 'btn-outline-secondary'}`}
                   onClick={() => setRole(r)}
                 >
                   <i className={`bi ${r === 'admin' ? 'bi-shield-lock' : 'bi-person-badge'} me-1`} />
@@ -110,8 +113,9 @@ export default function Register() {
 
           {role === 'student' && (
             <div className="fade-in">
-              <hr className="my-3" style={{ borderColor: 'var(--border)' }} />
-              <p className="text-muted small fw-semibold mb-3 text-uppercase" style={{ letterSpacing: '.05em' }}>Student Details</p>
+              <div className="section-divider">
+                <span>Student Details</span>
+              </div>
               <div className="row g-3 mb-3">
                 <div className="col-sm-6">
                   <label className="form-label">Full Name</label>
@@ -153,7 +157,7 @@ export default function Register() {
             </div>
           )}
 
-          <button type="submit" className="btn btn-primary w-100 py-2 mt-2" disabled={submitting}>
+          <button type="submit" className="btn btn-primary btn-glow w-100 py-2 mt-2" disabled={submitting}>
             {submitting ? (
               <><span className="spinner-border spinner-border-sm me-2" />Creating account...</>
             ) : (
@@ -162,7 +166,7 @@ export default function Register() {
           </button>
         </form>
 
-        <div className="text-center mt-4">
+        <div className="text-center mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
           <span className="text-muted small">Already have an account? </span>
           <Link to="/login" className="small fw-semibold">Sign In</Link>
         </div>

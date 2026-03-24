@@ -453,3 +453,75 @@ a:hover { color: var(--primary-dark); }
 .fade-in { animation: fadeIn .4s ease-out; }
 
 .navbar-toggler { color: var(--text); }
+
+/* ══════════════════════════════════════════════
+   GLASSMORPHISM CARD
+   ══════════════════════════════════════════════ */
+.glass-card {
+  background: rgba(255, 255, 255, .82) !important;
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, .3) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, .08),
+    0 2px 8px rgba(0, 0, 0, .04),
+    inset 0 1px 0 rgba(255, 255, 255, .6) !important;
+}
+
+[data-theme="dark"] .glass-card {
+  background: rgba(30, 41, 59, .75) !important;
+  border: 1px solid rgba(255, 255, 255, .08) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, .3),
+    0 2px 8px rgba(0, 0, 0, .2),
+    inset 0 1px 0 rgba(255, 255, 255, .05) !important;
+}
+
+.input-group-glass .input-group-text {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-right: none;
+}
+.input-group-glass .form-control {
+  border-left: none;
+}
+.input-group-glass .form-control:focus {
+  border-color: var(--primary);
+}
+.input-group-glass .form-control:focus + .input-group-text,
+.input-group-glass:focus-within .input-group-text {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-glow {
+  box-shadow: 0 2px 15px var(--primary-glow);
+}
+.btn-glow:hover {
+  box-shadow: 0 4px 25px var(--primary-glow), 0 0 40px rgba(79, 70, 229, .15);
+}
+
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin: 1rem 0;
+  color: var(--text-muted);
+  font-size: .75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.section-divider::before,
+.section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.login-wrapper canvas {
+  position: absolute;
+  inset: 0;
+}
