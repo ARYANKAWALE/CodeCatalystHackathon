@@ -632,6 +632,27 @@ code { color: var(--primary-light); background: var(--primary-bg); padding: .15e
 
 .navbar-toggler { color: var(--text); }
 
+.pw-toggle {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  padding: 0 .75rem;
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.pw-toggle:hover {
+  color: var(--primary);
+  background: var(--primary-bg);
+  border-color: var(--primary);
+}
+.pw-toggle:focus {
+  box-shadow: none;
+  border-color: var(--border);
+}
+
 .section-divider {
   display: flex;
   align-items: center;

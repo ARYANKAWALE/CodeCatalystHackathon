@@ -15,6 +15,8 @@ export default function Register() {
     name: '', roll_number: '', department: DEPARTMENTS[0], year: '1',
     phone: '', cgpa: '', skills: '',
   });
+  const [showPw, setShowPw] = useState(false);
+  const [showCpw, setShowCpw] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -89,11 +91,21 @@ export default function Register() {
           <div className="row g-3 mb-3">
             <div className="col-sm-6">
               <label className="form-label">Password</label>
-              <input type="password" className="form-control" value={form.password} onChange={set('password')} required minLength={6} />
+              <div className="input-group">
+                <input type={showPw ? 'text' : 'password'} className="form-control" value={form.password} onChange={set('password')} required minLength={6} />
+                <button type="button" className="btn btn-outline-secondary pw-toggle" onClick={() => setShowPw(!showPw)} tabIndex={-1}>
+                  <i className={`bi ${showPw ? 'bi-eye-slash' : 'bi-eye'}`} />
+                </button>
+              </div>
             </div>
             <div className="col-sm-6">
               <label className="form-label">Confirm</label>
-              <input type="password" className="form-control" value={form.confirmPassword} onChange={set('confirmPassword')} required />
+              <div className="input-group">
+                <input type={showCpw ? 'text' : 'password'} className="form-control" value={form.confirmPassword} onChange={set('confirmPassword')} required />
+                <button type="button" className="btn btn-outline-secondary pw-toggle" onClick={() => setShowCpw(!showCpw)} tabIndex={-1}>
+                  <i className={`bi ${showCpw ? 'bi-eye-slash' : 'bi-eye'}`} />
+                </button>
+              </div>
             </div>
           </div>
 

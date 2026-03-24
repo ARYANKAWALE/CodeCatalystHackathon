@@ -9,6 +9,7 @@ export default function Login() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -53,7 +54,12 @@ export default function Login() {
           </div>
           <div className="mb-3">
             <label className="form-label" htmlFor="login-p">Password</label>
-            <input id="login-p" type="password" className="form-control form-control-lg" placeholder="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <div className="input-group">
+              <input id="login-p" type={showPw ? 'text' : 'password'} className="form-control form-control-lg" placeholder="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <button type="button" className="btn btn-outline-secondary pw-toggle" onClick={() => setShowPw(!showPw)} tabIndex={-1}>
+                <i className={`bi ${showPw ? 'bi-eye-slash' : 'bi-eye'}`} />
+              </button>
+            </div>
           </div>
 
           <p className="text-muted small mb-3">Demo: <code>admin</code> / <code>admin123</code></p>
