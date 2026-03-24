@@ -1,9 +1,11 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
+  const { dark, toggle } = useTheme();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
 
@@ -47,10 +49,13 @@ export default function Navbar() {
           </ul>
           <form className="d-flex me-3" onSubmit={handleSearch}>
             <div className="input-group search-box">
-              <span className="input-group-text bg-transparent border-end-0"><i className="bi bi-search" /></span>
+              <span className="input-group-text border-end-0"><i className="bi bi-search" /></span>
               <input type="text" className="form-control border-start-0" placeholder="Search..." value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
           </form>
+          <button className="theme-toggle me-2" onClick={toggle} title={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
+            <i className={`bi ${dark ? 'bi-sun-fill' : 'bi-moon-fill'}`} />
+          </button>
           <div className="dropdown">
             <button className="btn btn-outline-secondary d-flex align-items-center gap-2" data-bs-toggle="dropdown">
               <div className="avatar-sm">{user.username[0].toUpperCase()}</div>
@@ -58,7 +63,7 @@ export default function Navbar() {
               <i className="bi bi-chevron-down small" />
             </button>
             <ul className="dropdown-menu dropdown-menu-end mt-2">
-              <li><span className="dropdown-item-text text-muted small">Signed in as <strong>{user.username}</strong></span></li>
+              <li><span className="dropdown-item-text text-muted small">Signed in as <strong>{user.username}</strong> ({user.role})</span></li>
               <li><hr className="dropdown-divider" /></li>
               <li><button className="dropdown-item" onClick={() => { logout(); navigate('/login'); }}><i className="bi bi-box-arrow-right me-2" />Logout</button></li>
             </ul>
