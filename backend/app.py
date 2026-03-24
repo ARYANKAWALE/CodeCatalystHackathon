@@ -907,9 +907,6 @@ def report_me():
         "internship_status_counts": internship_status_counts,
         "placement_status_counts": placement_status_counts,
         "appeal_counts": appeal_counts,
-        "recent_internships": [i.to_dict() for i in Internship.query.filter_by(student_id=vsid).order_by(Internship.created_at.desc()).limit(10).all()],
-        "recent_placements": [p.to_dict() for p in Placement.query.filter_by(student_id=vsid).order_by(Placement.created_at.desc()).limit(10).all()],
-        "recent_appeals": [a.to_dict() for a in Appeal.query.filter_by(student_id=vsid).order_by(Appeal.created_at.desc()).limit(10).all()],
     })
 
 

@@ -122,58 +122,9 @@ export default function MyReports() {
         </div>
       </div>
 
-      <div className="row g-4">
-        <div className="col-lg-6">
-          <div className="table-container">
-            <div className="card-header border-bottom">Recent internships</div>
-            <div className="table-responsive">
-              <table className="table mb-0">
-                <thead>
-                  <tr><th>Company</th><th>Title</th><th>Status</th></tr>
-                </thead>
-                <tbody>
-                  {(data?.recent_internships || []).length === 0 ? (
-                    <tr><td colSpan={3} className="text-muted text-center py-4">None</td></tr>
-                  ) : (
-                    data.recent_internships.map((i) => (
-                      <tr key={i.id}>
-                        <td>{i.company_name}</td>
-                        <td><Link to={`/internships/${i.id}`}>{i.title}</Link></td>
-                        <td><StatusBadge status={i.status} /></td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-        <div className="col-lg-6">
-          <div className="table-container">
-            <div className="card-header border-bottom">Recent placements</div>
-            <div className="table-responsive">
-              <table className="table mb-0">
-                <thead>
-                  <tr><th>Company</th><th>Role</th><th>Status</th></tr>
-                </thead>
-                <tbody>
-                  {(data?.recent_placements || []).length === 0 ? (
-                    <tr><td colSpan={3} className="text-muted text-center py-4">None</td></tr>
-                  ) : (
-                    data.recent_placements.map((p) => (
-                      <tr key={p.id}>
-                        <td>{p.company_name}</td>
-                        <td><Link to={`/placements/${p.id}`}>{p.role}</Link></td>
-                        <td><StatusBadge status={p.status} /></td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
+      <p className="text-muted small mb-0">
+        Open <Link to="/internships">My internships</Link> or <Link to="/placements">My placements</Link> for full lists.
+      </p>
     </div>
   );
 }
