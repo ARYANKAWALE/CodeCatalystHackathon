@@ -42,7 +42,11 @@ def token_required(f):
             return jsonify({"error": "Token is missing"}), 401
         try:
             data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-            g.current_user = db.session.get(User, data["user_id"])
+            try:
+                uid = int(data["user_id"])
+            except (TypeError, ValueError):
+                return jsonify({"error": "Invalid token"}), 401
+            g.current_user = db.session.get(User, uid)
             if not g.current_user:
                 return jsonify({"error": "User not found"}), 401
         except jwt.ExpiredSignatureError:
@@ -57,16 +61,24 @@ def admin_required(f):
     @wraps(f)
     @token_required
     def decorated(*args, **kwargs):
-        if g.current_user.role != "admin":
+        if current_user_role() != "admin":
             return jsonify({"error": "Admin access required"}), 403
         return f(*args, **kwargs)
     return decorated
 
 
+def current_user_role():
+    """Normalized role for access checks (lowercase, trimmed)."""
+    r = g.current_user.role
+    if r is None:
+        return ""
+    return str(r).strip().lower()
+
+
 def student_data_scope():
     """(is_student_role, student_id). Admins get (False, None). Students without a linked row get (True, None)."""
     u = g.current_user
-    if u.role != "student":
+    if current_user_role() != "student":
         return (False, None)
     return (True, u.student_id)
 
@@ -164,7 +176,7 @@ def auth_me():
 @app.route("/api/dashboard")
 @token_required
 def dashboard():
-    if g.current_user.role == "student" and g.current_user.student_id:
+    if current_user_role() == "student" and g.current_user.student_id:
         student = db.session.get(Student, g.current_user.student_id)
         if not student:
             return jsonify({"error": "Student not found"}), 404
@@ -221,7 +233,7 @@ def dashboard():
 @app.route("/api/students")
 @token_required
 def students_list():
-    if g.current_user.role == "student":
+    if current_user_role() == "student":
         return jsonify({"error": "Admin access required"}), 403
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 15, type=int)

@@ -119,7 +119,9 @@ export default function PlacementList() {
   const statuses = data?.statuses ?? [];
   const total = data?.total ?? 0;
   const pages = data?.pages ?? 1;
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = String(user?.role ?? '').toLowerCase() === 'admin';
+  const isStudent = String(user?.role ?? '').toLowerCase() === 'student';
+  const tableCols = isStudent ? 6 : 7;
 
   if (loading && !data) {
     return (
@@ -135,9 +137,17 @@ export default function PlacementList() {
     <div>
       <div className="page-header d-flex flex-wrap justify-content-between align-items-start gap-3">
         <div>
-          <h1>Placements</h1>
+          <h1>{isStudent ? 'My placements' : 'Placements'}</h1>
           <p className="subtitle mb-0">
-            {total === 1 ? '1 placement' : `${total} placements`}
+            {isStudent
+              ? total === 0
+                ? 'No placement records yet'
+                : total === 1
+                  ? '1 of your placements'
+                  : `${total} of your placements`
+              : total === 1
+                ? '1 placement'
+                : `${total} placements`}
           </p>
         </div>
         {isAdmin && (
@@ -201,7 +211,7 @@ export default function PlacementList() {
           <table className="table mb-0">
             <thead>
               <tr>
-                <th>Student Name</th>
+                {!isStudent && <th>Student Name</th>}
                 <th>Company</th>
                 <th>Role</th>
                 <th>Package</th>
@@ -213,16 +223,18 @@ export default function PlacementList() {
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-muted text-center py-5">
+                  <td colSpan={tableCols} className="text-muted text-center py-5">
                     No placements match your filters.
                   </td>
                 </tr>
               ) : (
                 items.map((row) => (
                   <tr key={row.id}>
-                    <td>
-                      <Link to={`/students/${row.student_id}`}>{row.student_name || '—'}</Link>
-                    </td>
+                    {!isStudent && (
+                      <td>
+                        <Link to={`/students/${row.student_id}`}>{row.student_name || '—'}</Link>
+                      </td>
+                    )}
                     <td>
                       <Link to={`/companies/${row.company_id}`}>{row.company_name || '—'}</Link>
                     </td>
