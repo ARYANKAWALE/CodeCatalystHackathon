@@ -246,7 +246,7 @@ a:hover { color: var(--primary-dark); }
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   box-shadow: var(--shadow); overflow: hidden;
 }
-.table { margin-bottom: 0; font-size: .875rem; color: var(--text); }
+.table { margin-bottom: 0; font-size: .875rem; color: var(--text); --bs-table-bg: var(--surface); --bs-table-color: var(--text); --bs-table-hover-bg: var(--surface-hover); --bs-table-hover-color: var(--text); --bs-table-striped-bg: var(--surface-2); }
 .table thead th {
   background: var(--table-head-bg); border-bottom: 2px solid var(--border);
   font-weight: 600; text-transform: uppercase; font-size: .73rem;
