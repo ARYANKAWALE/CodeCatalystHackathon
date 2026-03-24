@@ -24,7 +24,7 @@ export default function AppealList() {
 
   const role = String(user?.role ?? '').toLowerCase();
   const isAdmin = role === 'admin';
-  const isStudent = role === 'student';
+  const isStudent = role === 'student' && !isAdmin;
 
   const query = useMemo(() => {
     const p = new URLSearchParams();

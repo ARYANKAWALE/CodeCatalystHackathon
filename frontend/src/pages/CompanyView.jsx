@@ -28,7 +28,7 @@ export default function CompanyView() {
   const { user } = useAuth();
   const role = String(user?.role ?? '').toLowerCase();
   const isAdmin = role === 'admin';
-  const isStudent = role === 'student' && user?.student_id != null;
+  const isStudent = role === 'student' && !isAdmin && user?.student_id != null;
 
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);

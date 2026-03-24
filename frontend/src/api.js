@@ -1,4 +1,33 @@
-const API = import.meta.env.VITE_API_URL || '/api';
+/** Base URL without trailing slash. Local dev: `/api` (Vite proxy). Production: e.g. `https://your-api.onrender.com/api` */
+function apiBase() {
+  const raw = import.meta.env.VITE_API_URL || '/api';
+  return String(raw).replace(/\/+$/, '') || '/api';
+}
+
+function apiUrl(path) {
+  const base = apiBase();
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${p}`;
+}
+
+async function readErrorMessage(res) {
+  const text = await res.text();
+  try {
+    const j = JSON.parse(text);
+    if (j && typeof j.error === 'string' && j.error) return j.error;
+    if (j && typeof j.message === 'string' && j.message) return j.message;
+  } catch {
+    /* not JSON */
+  }
+  const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 120);
+  if (res.status === 404) {
+    return snippet
+      ? `Not found (${res.status}): ${snippet}`
+      : `Not found (${res.status}). Check that VITE_API_URL is your API root including /api (e.g. https://host.onrender.com/api).`;
+  }
+  if (snippet) return `HTTP ${res.status}: ${snippet}`;
+  return `Request failed (HTTP ${res.status})`;
+}
 
 function getToken() {
   return localStorage.getItem('token');
@@ -9,7 +38,7 @@ async function request(url, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${API}${url}`, { ...options, headers });
+  const res = await fetch(apiUrl(url), { ...options, headers });
 
   if (res.status === 401) {
     localStorage.removeItem('token');
@@ -23,11 +52,17 @@ async function request(url, options = {}) {
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Request failed');
+    if (!res.ok) {
+      throw new Error(
+        (typeof data?.error === 'string' && data.error) ||
+          (typeof data?.message === 'string' && data.message) ||
+          `Request failed (HTTP ${res.status})`,
+      );
+    }
     return data;
   }
 
-  if (!res.ok) throw new Error('Request failed');
+  if (!res.ok) throw new Error(await readErrorMessage(res));
   return res;
 }
 
@@ -40,6 +75,6 @@ export const api = {
     const token = getToken();
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    return fetch(`${API}${url}`, { headers });
+    return fetch(apiUrl(url), { headers });
   },
 };

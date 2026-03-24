@@ -119,8 +119,9 @@ export default function InternshipList() {
   const statuses = data?.statuses ?? [];
   const total = data?.total ?? 0;
   const pages = data?.pages ?? 1;
-  const isAdmin = String(user?.role ?? '').toLowerCase() === 'admin';
-  const isStudent = String(user?.role ?? '').toLowerCase() === 'student';
+  const role = String(user?.role ?? '').toLowerCase();
+  const isAdmin = role === 'admin';
+  const isStudent = role === 'student' && !isAdmin;
   const tableCols = isStudent ? 7 : 8;
 
   if (loading && !data) {

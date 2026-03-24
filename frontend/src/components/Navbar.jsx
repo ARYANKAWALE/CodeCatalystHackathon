@@ -28,34 +28,39 @@ export default function Navbar() {
   if (!user) return null;
 
   const role = String(user.role ?? '').toLowerCase();
-  const isStudent = role === 'student';
   const isAdmin = role === 'admin';
+  /** Student-only UI; admins never use "My …" nav even if student_id is set */
+  const isStudent = role === 'student' && !isAdmin;
 
   const navItems = [
     { to: '/dashboard', icon: 'bi-grid-1x2-fill', label: 'Dashboard' },
+    ...(isAdmin ? [{ to: '/students', icon: 'bi-people-fill', label: 'Students' }] : []),
     ...(isStudent && user.student_id != null
       ? [{ to: `/students/${user.student_id}`, icon: 'bi-person-badge', label: 'My profile' }]
       : []),
-    ...(isAdmin ? [{ to: '/students', icon: 'bi-people-fill', label: 'Students' }] : []),
     { to: '/companies', icon: 'bi-building', label: 'Companies' },
     {
       to: '/internships',
       icon: 'bi-briefcase-fill',
-      label: isStudent ? 'My internships' : 'Internships',
+      label: isAdmin ? 'Internships' : isStudent ? 'My internships' : 'Internships',
     },
     {
       to: '/placements',
       icon: 'bi-trophy-fill',
-      label: isStudent ? 'My placements' : 'Placements',
+      label: isAdmin ? 'Placements' : isStudent ? 'My placements' : 'Placements',
     },
+    ...(isAdmin
+      ? [
+          { to: '/reports', icon: 'bi-file-earmark-bar-graph-fill', label: 'Reports' },
+          { to: '/appeals', icon: 'bi-inbox-fill', label: 'Appeals' },
+        ]
+      : []),
     ...(isStudent
       ? [
           { to: '/appeals', icon: 'bi-send-fill', label: 'My requests' },
           { to: '/reports/me', icon: 'bi-graph-up-arrow', label: 'My report' },
         ]
       : []),
-    ...(isAdmin ? [{ to: '/reports', icon: 'bi-file-earmark-bar-graph-fill', label: 'Reports' }] : []),
-    ...(isAdmin ? [{ to: '/appeals', icon: 'bi-inbox-fill', label: 'Appeals' }] : []),
   ];
 
   return (

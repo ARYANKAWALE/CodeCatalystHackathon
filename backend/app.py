@@ -6,7 +6,7 @@ from functools import wraps
 import jwt
 from flask import Flask, jsonify, request, send_file, send_from_directory, g
 from flask_cors import CORS
-from sqlalchemy import false as sql_false
+from sqlalchemy import false as sql_false, inspect as sa_inspect
 
 from config import Config
 from models import db, User, Student, Company, Internship, Placement, Appeal
@@ -1067,7 +1067,7 @@ def serve_frontend(path):
 
 def init_db():
     with app.app_context():
-        db.create_all()
+        _ensure_db_schema()
         if not User.query.filter_by(username="admin").first():
             admin = User(username="admin", email="admin@placetrack.edu", role="admin")
             admin.set_password("admin123")
@@ -1076,8 +1076,20 @@ def init_db():
             print("Default admin created: admin / admin123")
 
 
-with app.app_context():
+def _ensure_db_schema():
+    """Create all tables; if appeals was added after first deploy, create it explicitly."""
     db.create_all()
+    try:
+        inspector = sa_inspect(db.engine)
+        if "appeals" not in inspector.get_table_names():
+            Appeal.__table__.create(db.engine, checkfirst=True)
+            print("PlaceTrack: created missing table 'appeals'")
+    except Exception as ex:
+        print("PlaceTrack: schema check:", ex)
+
+
+with app.app_context():
+    _ensure_db_schema()
     if not User.query.filter_by(username="admin").first():
         admin = User(username="admin", email="admin@placetrack.edu", role="admin")
         admin.set_password("admin123")

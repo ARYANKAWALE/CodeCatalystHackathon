@@ -11,7 +11,7 @@ export default function MyReports() {
   const [loading, setLoading] = useState(true);
 
   const role = String(user?.role ?? '').toLowerCase();
-  const isStudent = role === 'student' && user?.student_id != null;
+  const isStudent = role !== 'admin' && role === 'student' && user?.student_id != null;
 
   useEffect(() => {
     if (!isStudent) return;

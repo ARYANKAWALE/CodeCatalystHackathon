@@ -22,7 +22,8 @@ export default function AppealForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const role = String(user?.role ?? '').toLowerCase();
-  const isStudent = role === 'student' && user?.student_id != null;
+  const isAdmin = role === 'admin';
+  const isStudent = !isAdmin && role === 'student' && user?.student_id != null;
 
   useEffect(() => {
     let cancelled = false;
