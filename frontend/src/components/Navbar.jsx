@@ -1,19 +1,19 @@
-import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { useState, useRef, useEffect } from 'react';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
-export default function Navbar() {
+export default function Navbar({ children }) {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [query, setQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
-  const collapseRef = useRef(null);
 
   useEffect(() => {
     setMenuOpen(false);
-  }, [navigate]);
+  }, [location.pathname]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -25,7 +25,13 @@ export default function Navbar() {
 
   const closeMenu = () => setMenuOpen(false);
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <main className="main-content main-content--no-sidebar">
+        {children}
+      </main>
+    );
+  }
 
   const role = String(user.role ?? '').toLowerCase();
   const isAdmin = role === 'admin';
@@ -64,39 +70,24 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="navbar navbar-expand-lg sticky-top">
-      <div className="container-fluid px-3 px-md-4">
-        <Link className="navbar-brand d-flex align-items-center gap-2" to="/dashboard" onClick={closeMenu}>
-          <div className="brand-icon"><i className="bi bi-mortarboard-fill" /></div>
-          <span className="fw-bold">PlaceTrack</span>
-        </Link>
+    <div className="app-shell">
+      {menuOpen && (
+        <button
+          type="button"
+          className="sidebar-backdrop d-md-none"
+          aria-label="Close menu"
+          onClick={closeMenu}
+        />
+      )}
 
-        <div className="d-flex align-items-center gap-2 d-lg-none">
-          <button className="theme-toggle" onClick={toggle} style={{ width: 34, height: 34, fontSize: '.95rem' }}>
-            <i className={`bi ${dark ? 'bi-sun-fill' : 'bi-moon-fill'}`} />
-          </button>
-          <button
-            className="navbar-toggler border-0 p-1"
-            type="button"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-expanded={menuOpen}
-          >
-            <i className={`bi ${menuOpen ? 'bi-x-lg' : 'bi-list'} fs-4`} />
-          </button>
-        </div>
+      <aside id="app-sidebar" className={`app-sidebar ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
+        <div className="sidebar-top">
+          <Link className="sidebar-brand" to="/dashboard" onClick={closeMenu}>
+            <div className="brand-icon"><i className="bi bi-mortarboard-fill" /></div>
+            <span className="fw-bold">PlaceTrack</span>
+          </Link>
 
-        <div className={`collapse navbar-collapse ${menuOpen ? 'show' : ''}`} ref={collapseRef}>
-          <ul className="navbar-nav me-auto ms-lg-3">
-            {navItems.map(({ to, icon, label }) => (
-              <li className="nav-item" key={to}>
-                <NavLink className="nav-link" to={to} onClick={closeMenu}>
-                  <i className={`bi ${icon} me-1`} /> {label}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-
-          <form className="d-flex my-2 my-lg-0 me-lg-3" onSubmit={handleSearch}>
+          <form className="sidebar-search" onSubmit={handleSearch}>
             <div className="input-group search-box">
               <span className="input-group-text border-end-0"><i className="bi bi-search" /></span>
               <input
@@ -108,36 +99,97 @@ export default function Navbar() {
               />
             </div>
           </form>
+        </div>
 
-          <div className="d-none d-lg-block me-2">
-            <button className="theme-toggle" onClick={toggle} title={dark ? 'Light mode' : 'Dark mode'}>
-              <i className={`bi ${dark ? 'bi-sun-fill' : 'bi-moon-fill'}`} />
-            </button>
-          </div>
+        <nav className="sidebar-nav">
+          <ul className="sidebar-nav-list">
+            {navItems.map(({ to, icon, label }) => (
+              <li key={`${to}-${label}`}>
+                <NavLink className="sidebar-nav-link" to={to} onClick={closeMenu}>
+                  <i className={`bi ${icon}`} />
+                  <span>{label}</span>
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-          <div className="dropdown my-2 my-lg-0">
-            <button className="btn btn-outline-secondary d-flex align-items-center gap-2 w-100 w-lg-auto" data-bs-toggle="dropdown">
+        <div className="sidebar-footer">
+          <div className="dropdown dropup sidebar-profile-dropdown">
+            <button
+              type="button"
+              className="btn btn-outline-secondary sidebar-profile-btn d-flex align-items-center gap-2 w-100"
+              data-bs-toggle="dropdown"
+              aria-expanded="false"
+            >
               <div className="avatar-sm">{user.username[0].toUpperCase()}</div>
-              <span>{user.username}</span>
-              <i className="bi bi-chevron-down small ms-auto ms-lg-0" />
+              <span className="text-truncate flex-grow-1 text-start">{user.username}</span>
+              <i className="bi bi-chevron-up small flex-shrink-0" />
             </button>
-            <ul className="dropdown-menu dropdown-menu-end mt-2 w-100 w-lg-auto">
-              <li><span className="dropdown-item-text text-muted small">Signed in as <strong>{user.username}</strong> ({user.role})</span></li>
+            <ul className="dropdown-menu dropdown-menu-start shadow-lg w-100">
+              <li>
+                <span className="dropdown-item-text text-muted small">
+                  Signed in as <strong>{user.username}</strong> ({user.role})
+                </span>
+              </li>
               <li><hr className="dropdown-divider" /></li>
               <li>
                 <Link className="dropdown-item" to="/account/password" onClick={closeMenu}>
-                  <i className="bi bi-key me-2" />Change password
+                  <i className="bi bi-key me-2" />
+                  Change password
                 </Link>
               </li>
               <li>
-                <button className="dropdown-item" onClick={() => { logout(); navigate('/login'); closeMenu(); }}>
-                  <i className="bi bi-box-arrow-right me-2" />Logout
+                <button
+                  type="button"
+                  className="dropdown-item"
+                  onClick={() => toggle()}
+                >
+                  <i className={`bi ${dark ? 'bi-sun-fill' : 'bi-moon-fill'} me-2`} />
+                  {dark ? 'Light mode' : 'Dark mode'}
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className="dropdown-item"
+                  onClick={() => {
+                    logout();
+                    navigate('/login');
+                    closeMenu();
+                  }}
+                >
+                  <i className="bi bi-box-arrow-right me-2" />
+                  Logout
                 </button>
               </li>
             </ul>
           </div>
         </div>
+      </aside>
+
+      <div className="app-main-area">
+        <header className="mobile-chrome-bar d-md-none">
+          <button
+            type="button"
+            className="mobile-chrome-menu-btn"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-expanded={menuOpen}
+            aria-controls="app-sidebar"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          >
+            <i className={`bi ${menuOpen ? 'bi-x-lg' : 'bi-list'} fs-4`} />
+          </button>
+          <Link className="mobile-chrome-brand" to="/dashboard" onClick={closeMenu}>
+            <div className="brand-icon brand-icon-sm" aria-hidden>
+              <i className="bi bi-mortarboard-fill" />
+            </div>
+            <span className="fw-bold">PlaceTrack</span>
+          </Link>
+        </header>
+
+        <main className="main-content">{children}</main>
       </div>
-    </nav>
+    </div>
   );
 }

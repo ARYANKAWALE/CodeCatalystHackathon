@@ -1,27 +1,56 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import StatusBadge from '../components/StatusBadge';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
-const barOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { display: false } },
-  scales: {
-    y: { beginAtZero: true, ticks: { precision: 0 } },
-  },
-};
-
-const doughnutOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { position: 'bottom' } },
-};
+function buildChartOptions(dark) {
+  const tickColor = dark ? '#e2e8f0' : '#64748b';
+  const gridColor = dark ? 'rgba(148, 163, 184, 0.18)' : 'rgba(15, 23, 42, 0.06)';
+  const barOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: {
+        ticks: { color: tickColor },
+        grid: { color: gridColor },
+      },
+      y: {
+        beginAtZero: true,
+        ticks: { precision: 0, color: tickColor },
+        grid: { color: gridColor },
+      },
+    },
+  };
+  const doughnutOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          color: dark ? '#8c9bb0' : '#334155',
+          padding: 14,
+          usePointStyle: true,
+        },
+      },
+      tooltip: {
+        titleColor: dark ? '#ffffff' : '#0f172a',
+        bodyColor: dark ? '#e2e8f0' : '#334155',
+        backgroundColor: dark ? 'rgba(30, 41, 59, 0.96)' : '#ffffff',
+        borderColor: dark ? '#475569' : '#e2e8f0',
+        borderWidth: 1,
+      },
+    },
+  };
+  return { barOptions, doughnutOptions };
+}
 
 const doughnutColors = [
   '#4f46e5',
@@ -38,6 +67,8 @@ function fmt(v) {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { dark } = useTheme();
+  const { barOptions, doughnutOptions } = useMemo(() => buildChartOptions(dark), [dark]);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);

@@ -54,42 +54,39 @@ export default function App() {
 
 function AppLayout() {
   return (
-    <>
-      <Navbar />
-      <main className="main-content">
-        <div className="container-fluid px-4">
-          <Routes>
-            <Route path="/dashboard" element={<P><Dashboard /></P>} />
-            <Route path="/account/password" element={<P><ChangePassword /></P>} />
-            <Route path="/students" element={<P><StudentList /></P>} />
-            <Route path="/students/add" element={<P><StudentForm /></P>} />
-            <Route path="/students/:id/edit" element={<P><StudentForm /></P>} />
-            <Route path="/students/:id" element={<P><StudentView /></P>} />
-            <Route path="/companies" element={<P><CompanyList /></P>} />
-            <Route path="/companies/add" element={<P><AdminRoute><CompanyForm /></AdminRoute></P>} />
-            <Route path="/companies/:id/edit" element={<P><AdminRoute><CompanyForm /></AdminRoute></P>} />
-            <Route path="/companies/:id" element={<P><CompanyView /></P>} />
-            <Route path="/internships" element={<P><InternshipList /></P>} />
-            <Route path="/internships/add" element={<P><AdminRoute><InternshipForm /></AdminRoute></P>} />
-            <Route path="/internships/:id/edit" element={<P><AdminRoute><InternshipForm /></AdminRoute></P>} />
-            <Route path="/internships/:id" element={<P><InternshipView /></P>} />
-            <Route path="/placements" element={<P><PlacementList /></P>} />
-            <Route path="/placements/add" element={<P><AdminRoute><PlacementForm /></AdminRoute></P>} />
-            <Route path="/placements/:id/edit" element={<P><AdminRoute><PlacementForm /></AdminRoute></P>} />
-            <Route path="/placements/:id" element={<P><PlacementView /></P>} />
-            <Route path="/search" element={<P><SearchResults /></P>} />
-            <Route path="/reports" element={<P><AdminRoute><Reports /></AdminRoute></P>} />
-            <Route path="/reports/placement-summary" element={<P><AdminRoute><PlacementSummary /></AdminRoute></P>} />
-            <Route path="/reports/internship-summary" element={<P><AdminRoute><InternshipSummary /></AdminRoute></P>} />
-            <Route path="/reports/company-wise" element={<P><AdminRoute><CompanyWiseReport /></AdminRoute></P>} />
-            <Route path="/reports/me" element={<P><MyReports /></P>} />
-            <Route path="/appeals" element={<P><AppealList /></P>} />
-            <Route path="/appeals/new" element={<P><AppealForm /></P>} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </div>
-      </main>
-    </>
+    <Navbar>
+      <div className="container-fluid px-4">
+        <Routes>
+          <Route path="/dashboard" element={<P><Dashboard /></P>} />
+          <Route path="/account/password" element={<P><ChangePassword /></P>} />
+          <Route path="/students" element={<P><StudentList /></P>} />
+          <Route path="/students/add" element={<P><StudentForm /></P>} />
+          <Route path="/students/:id/edit" element={<P><StudentForm /></P>} />
+          <Route path="/students/:id" element={<P><StudentView /></P>} />
+          <Route path="/companies" element={<P><CompanyList /></P>} />
+          <Route path="/companies/add" element={<P><AdminRoute><CompanyForm /></AdminRoute></P>} />
+          <Route path="/companies/:id/edit" element={<P><AdminRoute><CompanyForm /></AdminRoute></P>} />
+          <Route path="/companies/:id" element={<P><CompanyView /></P>} />
+          <Route path="/internships" element={<P><InternshipList /></P>} />
+          <Route path="/internships/add" element={<P><AdminRoute><InternshipForm /></AdminRoute></P>} />
+          <Route path="/internships/:id/edit" element={<P><AdminRoute><InternshipForm /></AdminRoute></P>} />
+          <Route path="/internships/:id" element={<P><InternshipView /></P>} />
+          <Route path="/placements" element={<P><PlacementList /></P>} />
+          <Route path="/placements/add" element={<P><AdminRoute><PlacementForm /></AdminRoute></P>} />
+          <Route path="/placements/:id/edit" element={<P><AdminRoute><PlacementForm /></AdminRoute></P>} />
+          <Route path="/placements/:id" element={<P><PlacementView /></P>} />
+          <Route path="/search" element={<P><SearchResults /></P>} />
+          <Route path="/reports" element={<P><AdminRoute><Reports /></AdminRoute></P>} />
+          <Route path="/reports/placement-summary" element={<P><AdminRoute><PlacementSummary /></AdminRoute></P>} />
+          <Route path="/reports/internship-summary" element={<P><AdminRoute><InternshipSummary /></AdminRoute></P>} />
+          <Route path="/reports/company-wise" element={<P><AdminRoute><CompanyWiseReport /></AdminRoute></P>} />
+          <Route path="/reports/me" element={<P><MyReports /></P>} />
+          <Route path="/appeals" element={<P><AppealList /></P>} />
+          <Route path="/appeals/new" element={<P><AppealForm /></P>} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </div>
+    </Navbar>
   );
 }
