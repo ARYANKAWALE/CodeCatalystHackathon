@@ -463,6 +463,17 @@ code { color: var(--primary-light); background: var(--primary-bg); padding: .15e
 .stat-value { font-size: 1.75rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.2; color: var(--text); }
 .stat-label { font-size: .78rem; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; }
 
+.stat-card-link {
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius);
+}
+.stat-card-link:hover { color: inherit; }
+.stat-card-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
 /* ══════════════════════════════════════════════
    TABLES
    ══════════════════════════════════════════════ */
@@ -738,6 +749,111 @@ code { color: var(--primary-light); background: var(--primary-bg); padding: .15e
 .page-link:hover { background: var(--surface-hover); color: var(--text); border-color: var(--border); }
 .page-item.active .page-link { background: var(--primary); border-color: var(--primary); color: #fff; }
 .page-item.disabled .page-link { background: var(--surface-2); color: var(--text-muted); border-color: var(--border); }
+
+/* Polished list pagination (Pagination.jsx) */
+.pagination-placetrack {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem;
+  padding: .4rem .5rem;
+  margin: 0;
+  list-style: none;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.pagination-placetrack .page-item {
+  margin: 0;
+}
+
+.pagination-placetrack .page-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.4rem;
+  min-height: 2.4rem;
+  padding: 0 .65rem;
+  font-size: .8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px var(--shadow-color);
+  transition: color .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease, transform .15s ease;
+}
+
+.pagination-placetrack .page-item:first-child .page-link,
+.pagination-placetrack .page-item:last-child .page-link {
+  min-width: 5rem;
+  padding: 0 .85rem;
+  font-weight: 600;
+}
+
+.pagination-placetrack .page-link:hover {
+  z-index: 1;
+  color: var(--primary);
+  background: var(--primary-bg);
+  border-color: var(--primary-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.pagination-placetrack .page-item.active .page-link {
+  color: #fff !important;
+  font-weight: 600;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+  box-shadow: 0 2px 14px var(--primary-glow);
+  transform: none;
+}
+
+.pagination-placetrack .page-item.active .page-link:hover {
+  color: #fff !important;
+  filter: brightness(1.05);
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+}
+
+.pagination-placetrack .page-item.disabled .page-link {
+  opacity: .42;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: var(--surface);
+  color: var(--text-muted);
+  border-color: var(--border);
+  box-shadow: none;
+  transform: none;
+}
+
+.pagination-placetrack .page-item-ellipsis .page-link {
+  min-width: 2rem;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: .05em;
+  pointer-events: none;
+}
+
+.pagination-placetrack .page-item-ellipsis .page-link:hover {
+  transform: none;
+  box-shadow: none;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+@media (hover: none) {
+  .pagination-placetrack .page-link:hover { transform: none; }
+  .pagination-placetrack .page-item.active .page-link:hover { filter: none; }
+}
 
 /* ══════════════════════════════════════════════
    SPINNER

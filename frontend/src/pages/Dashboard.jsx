@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { api } from '../api';
@@ -67,6 +67,7 @@ function fmt(v) {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const location = useLocation();
   const { dark } = useTheme();
   const { barOptions, doughnutOptions } = useMemo(() => buildChartOptions(dark), [dark]);
   const [data, setData] = useState(null);
@@ -76,6 +77,7 @@ export default function Dashboard() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
       try {
         const res = await api.get('/dashboard');
         if (!cancelled) {
@@ -92,7 +94,7 @@ export default function Dashboard() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [location.pathname]);
 
   if (loading) {
     return (
@@ -286,46 +288,58 @@ export default function Dashboard() {
 
         <div className="row g-3 mb-4">
           <div className="col-6 col-md-4 col-xl-2">
-            <div className="stat-card primary h-100">
-              <div className="stat-icon mb-2"><i className="bi bi-people" /></div>
-              <div className="stat-value">{data.total_students ?? 0}</div>
-              <div className="stat-label">Total Students</div>
-            </div>
+            <Link to="/students" className="stat-card-link d-block h-100" title="View all students">
+              <div className="stat-card primary h-100">
+                <div className="stat-icon mb-2"><i className="bi bi-people" aria-hidden /></div>
+                <div className="stat-value">{data.total_students ?? 0}</div>
+                <div className="stat-label">Total Students</div>
+              </div>
+            </Link>
           </div>
           <div className="col-6 col-md-4 col-xl-2">
-            <div className="stat-card info h-100">
-              <div className="stat-icon mb-2"><i className="bi bi-building" /></div>
-              <div className="stat-value">{data.total_companies ?? 0}</div>
-              <div className="stat-label">Total Companies</div>
-            </div>
+            <Link to="/companies" className="stat-card-link d-block h-100" title="View all companies">
+              <div className="stat-card info h-100">
+                <div className="stat-icon mb-2"><i className="bi bi-building" aria-hidden /></div>
+                <div className="stat-value">{data.total_companies ?? 0}</div>
+                <div className="stat-label">Total Companies</div>
+              </div>
+            </Link>
           </div>
           <div className="col-6 col-md-4 col-xl-2">
-            <div className="stat-card warning h-100">
-              <div className="stat-icon mb-2"><i className="bi bi-briefcase" /></div>
-              <div className="stat-value">{data.active_internships ?? 0}</div>
-              <div className="stat-label">Active Internships</div>
-            </div>
+            <Link to="/internships?status=ongoing" className="stat-card-link d-block h-100" title="Internships with status ongoing">
+              <div className="stat-card warning h-100">
+                <div className="stat-icon mb-2"><i className="bi bi-briefcase" aria-hidden /></div>
+                <div className="stat-value">{data.active_internships ?? 0}</div>
+                <div className="stat-label">Active Internships</div>
+              </div>
+            </Link>
           </div>
           <div className="col-6 col-md-4 col-xl-2">
-            <div className="stat-card success h-100">
-              <div className="stat-icon mb-2"><i className="bi bi-check2-circle" /></div>
-              <div className="stat-value">{data.completed_internships ?? 0}</div>
-              <div className="stat-label">Completed Internships</div>
-            </div>
+            <Link to="/internships?status=completed" className="stat-card-link d-block h-100" title="Internships with status completed">
+              <div className="stat-card success h-100">
+                <div className="stat-icon mb-2"><i className="bi bi-check2-circle" aria-hidden /></div>
+                <div className="stat-value">{data.completed_internships ?? 0}</div>
+                <div className="stat-label">Completed Internships</div>
+              </div>
+            </Link>
           </div>
           <div className="col-6 col-md-4 col-xl-2">
-            <div className="stat-card success h-100">
-              <div className="stat-icon mb-2"><i className="bi bi-person-check" /></div>
-              <div className="stat-value">{data.placed_students ?? 0}</div>
-              <div className="stat-label">Students Placed</div>
-            </div>
+            <Link to="/placements?status=placed" className="stat-card-link d-block h-100" title="Placements with status placed">
+              <div className="stat-card success h-100">
+                <div className="stat-icon mb-2"><i className="bi bi-person-check" aria-hidden /></div>
+                <div className="stat-value">{data.placed_students ?? 0}</div>
+                <div className="stat-label">Students Placed</div>
+              </div>
+            </Link>
           </div>
           <div className="col-6 col-md-4 col-xl-2">
-            <div className="stat-card danger h-100">
-              <div className="stat-icon mb-2"><i className="bi bi-currency-rupee" /></div>
-              <div className="stat-value">{data.avg_package ?? 0}</div>
-              <div className="stat-label">Avg Package (LPA)</div>
-            </div>
+            <Link to="/placements?status=placed" className="stat-card-link d-block h-100" title="Placed offers — average package (LPA)">
+              <div className="stat-card danger h-100">
+                <div className="stat-icon mb-2"><i className="bi bi-currency-rupee" aria-hidden /></div>
+                <div className="stat-value">{Number(data.avg_package ?? 0).toFixed(2)}</div>
+                <div className="stat-label">Avg Package (LPA)</div>
+              </div>
+            </Link>
           </div>
         </div>
 

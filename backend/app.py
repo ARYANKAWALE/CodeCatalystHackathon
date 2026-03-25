@@ -9,7 +9,7 @@ from functools import wraps
 import jwt
 from flask import Flask, jsonify, request, send_file, send_from_directory, g
 from flask_cors import CORS
-from sqlalchemy import false as sql_false, inspect as sa_inspect, text
+from sqlalchemy import false as sql_false, func, inspect as sa_inspect, text
 
 from config import Config
 from mail_utils import schedule_plain_email
@@ -375,7 +375,13 @@ def dashboard():
     total_placements = Placement.query.count()
     active_internships = Internship.query.filter_by(status="ongoing").count()
     completed_internships = Internship.query.filter_by(status="completed").count()
-    placed_count = Placement.query.filter_by(status="placed").count()
+    # Students with at least one placed placement (not raw placement row count)
+    placed_count = (
+        db.session.query(func.count(func.distinct(Placement.student_id)))
+        .filter(Placement.status == "placed")
+        .scalar()
+    )
+    placed_count = int(placed_count or 0)
 
     placed = Placement.query.filter_by(status="placed").all()
     avg_package = round(sum(p.package_lpa for p in placed) / len(placed), 2) if placed else 0

@@ -1,6 +1,7 @@
 """Populate the MySQL database with sample data."""
 from datetime import date
 from app import app, db, init_db
+from companies_extra import COMPANIES_EXTRA_50
 from models import User, Student, Company, Internship, Placement
 
 STUDENTS = [
@@ -40,7 +41,7 @@ COMPANIES = [
     ("Amazon India", "E-Commerce / Technology", "https://www.amazon.in", "Neha Gupta", "neha.gupta@amazon.com", "9000100006", "Amazon Tower, Bangalore", "E-commerce and cloud computing."),
     ("Bosch India", "Manufacturing / Engineering", "https://www.bosch.in", "Klaus Mueller", "klaus.mueller@bosch.com", "9000100007", "Bosch Campus, Bangalore", "Engineering and technology company."),
     ("L&T Technology Services", "Engineering Services", "https://www.ltts.com", "Suresh Nair", "suresh.nair@ltts.com", "9000100008", "L&T House, Mumbai", "Engineering R&D services."),
-]
+] + list(COMPANIES_EXTRA_50)
 
 INTERNSHIPS = [
     (1, 4, "Machine Learning Intern", "Work on NLP models", "2025-05-01", "2025-07-31", 50000, "completed", "Completed sentiment analysis project"),
