@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import {
+  IN_MOBILE_DIGITS,
+  IN_PHONE_PREFIX,
+  isValidIndiaMobileDigits,
+  nationalDigitsFromStored,
+  sanitizeIndiaMobileInput,
+  toIndiaE164,
+} from '../utils/phoneIndia';
 
 const emptyForm = {
   name: '',
@@ -37,7 +45,7 @@ export default function CompanyForm() {
             website: c.website ?? '',
             contact_person: c.contact_person ?? '',
             contact_email: c.contact_email ?? '',
-            contact_phone: c.contact_phone ?? '',
+            contact_phone: nationalDigitsFromStored(c.contact_phone ?? ''),
             address: c.address ?? '',
             description: c.description ?? '',
           });
@@ -63,13 +71,18 @@ export default function CompanyForm() {
     e.preventDefault();
     setSaving(true);
     setError('');
+    if (form.contact_phone && !isValidIndiaMobileDigits(form.contact_phone)) {
+      setError(`Contact phone must be ${IN_MOBILE_DIGITS} digits starting with 6–9 (${IN_PHONE_PREFIX}) or left blank`);
+      setSaving(false);
+      return;
+    }
     const body = {
       name: form.name.trim(),
       industry: form.industry.trim(),
       website: form.website.trim(),
       contact_person: form.contact_person.trim(),
       contact_email: form.contact_email.trim(),
-      contact_phone: form.contact_phone.trim(),
+      contact_phone: toIndiaE164(form.contact_phone),
       address: form.address.trim(),
       description: form.description.trim(),
     };
@@ -183,13 +196,22 @@ export default function CompanyForm() {
               <label className="form-label" htmlFor="contact_phone">
                 Contact phone
               </label>
-              <input
-                id="contact_phone"
-                name="contact_phone"
-                className="form-control"
-                value={form.contact_phone}
-                onChange={onChange}
-              />
+              <div className="input-group">
+                <span className="input-group-text">{IN_PHONE_PREFIX}</span>
+                <input
+                  id="contact_phone"
+                  name="contact_phone"
+                  className="form-control"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  maxLength={IN_MOBILE_DIGITS}
+                  placeholder="10-digit mobile"
+                  value={form.contact_phone}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, contact_phone: sanitizeIndiaMobileInput(e.target.value) }))
+                  }
+                />
+              </div>
             </div>
             <div className="col-12">
               <label className="form-label" htmlFor="address">

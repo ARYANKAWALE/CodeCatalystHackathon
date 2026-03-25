@@ -15,6 +15,7 @@ from sqlalchemy import false as sql_false, func, inspect as sa_inspect, text
 from config import Config
 from mail_utils import schedule_plain_email
 from models import db, User, Student, Company, Internship, Placement, Appeal
+from phone_utils import normalize_india_phone
 
 STATIC_FOLDER = os.path.join(os.path.dirname(__file__), "static_frontend")
 
@@ -182,10 +183,13 @@ def register():
             return jsonify({"error": "Roll number already exists"}), 409
         if Student.query.filter_by(email=email).first():
             return jsonify({"error": "A student with this email already exists"}), 409
+        phone_norm, phone_err = normalize_india_phone(data.get("phone", ""))
+        if phone_err:
+            return jsonify({"error": phone_err}), 400
         student = Student(
             name=name, roll_number=roll_number, email=email,
             department=department, course=course, year=int(year),
-            phone=data.get("phone", "").strip(),
+            phone=phone_norm,
             cgpa=float(data["cgpa"]) if data.get("cgpa") else None,
             skills=data.get("skills", "").strip(),
         )
@@ -462,11 +466,14 @@ def students_create():
     for f in required:
         if not data.get(f):
             return jsonify({"error": f"{f} is required"}), 400
+    phone_norm, phone_err = normalize_india_phone(data.get("phone", ""))
+    if phone_err:
+        return jsonify({"error": phone_err}), 400
     student = Student(
         name=data["name"].strip(),
         roll_number=data["roll_number"].strip(),
         email=data["email"].strip(),
-        phone=data.get("phone", "").strip(),
+        phone=phone_norm,
         department=data["department"].strip(),
         course=data["course"].strip(),
         year=int(data["year"]),
@@ -505,7 +512,12 @@ def students_update(id):
     for field in ["name", "roll_number", "email", "department", "course", "year", "phone", "cgpa", "skills", "resume_link"]:
         if field in data:
             val = data[field]
-            if field == "year":
+            if field == "phone":
+                norm, err = normalize_india_phone(val)
+                if err:
+                    return jsonify({"error": err}), 400
+                val = norm
+            elif field == "year":
                 val = int(val)
             elif field == "cgpa":
                 val = float(val) if val else None
@@ -623,13 +635,16 @@ def companies_create():
     data = request.get_json() or {}
     if not data.get("name"):
         return jsonify({"error": "Company name is required"}), 400
+    phone_norm, phone_err = normalize_india_phone(data.get("contact_phone", ""))
+    if phone_err:
+        return jsonify({"error": phone_err}), 400
     company = Company(
         name=data["name"].strip(),
         industry=data.get("industry", "").strip(),
         website=data.get("website", "").strip(),
         contact_person=data.get("contact_person", "").strip(),
         contact_email=data.get("contact_email", "").strip(),
-        contact_phone=data.get("contact_phone", "").strip(),
+        contact_phone=phone_norm,
         address=data.get("address", "").strip(),
         description=data.get("description", "").strip(),
     )
@@ -670,7 +685,15 @@ def companies_update(id):
     data = request.get_json() or {}
     for field in ["name", "industry", "website", "contact_person", "contact_email", "contact_phone", "address", "description"]:
         if field in data:
-            setattr(company, field, data[field].strip() if isinstance(data[field], str) else data[field])
+            val = data[field]
+            if field == "contact_phone":
+                norm, err = normalize_india_phone(val)
+                if err:
+                    return jsonify({"error": err}), 400
+                val = norm
+            else:
+                val = val.strip() if isinstance(val, str) else val
+            setattr(company, field, val)
     try:
         db.session.commit()
         return jsonify(company.to_dict())

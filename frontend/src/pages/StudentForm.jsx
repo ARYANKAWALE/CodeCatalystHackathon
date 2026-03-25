@@ -7,6 +7,14 @@ import {
   getCoursesForDepartment,
   getDefaultCourseForDepartment,
 } from '../constants/studentProfile';
+import {
+  IN_MOBILE_DIGITS,
+  IN_PHONE_PREFIX,
+  isValidIndiaMobileDigits,
+  nationalDigitsFromStored,
+  sanitizeIndiaMobileInput,
+  toIndiaE164,
+} from '../utils/phoneIndia';
 
 const emptyForm = {
   name: '',
@@ -43,7 +51,7 @@ export default function StudentForm() {
             name: s.name ?? '',
             roll_number: s.roll_number ?? '',
             email: s.email ?? '',
-            phone: s.phone ?? '',
+            phone: nationalDigitsFromStored(s.phone ?? ''),
             department: s.department ?? DEPARTMENTS[0],
             course:
               s.course && String(s.course).trim()
@@ -85,11 +93,16 @@ export default function StudentForm() {
     e.preventDefault();
     setSaving(true);
     setError('');
+    if (form.phone && !isValidIndiaMobileDigits(form.phone)) {
+      setError(`Phone must be ${IN_MOBILE_DIGITS} digits starting with 6–9 (${IN_PHONE_PREFIX}) or left blank`);
+      setSaving(false);
+      return;
+    }
     const body = {
       name: form.name.trim(),
       roll_number: form.roll_number.trim(),
       email: form.email.trim(),
-      phone: form.phone.trim(),
+      phone: toIndiaE164(form.phone),
       department: form.department.trim(),
       course: form.course.trim(),
       year: parseInt(form.year, 10),
@@ -184,13 +197,22 @@ export default function StudentForm() {
               <label className="form-label" htmlFor="phone">
                 Phone
               </label>
-              <input
-                id="phone"
-                name="phone"
-                className="form-control"
-                value={form.phone}
-                onChange={onChange}
-              />
+              <div className="input-group">
+                <span className="input-group-text">{IN_PHONE_PREFIX}</span>
+                <input
+                  id="phone"
+                  name="phone"
+                  className="form-control"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  maxLength={IN_MOBILE_DIGITS}
+                  placeholder="10-digit mobile"
+                  value={form.phone}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, phone: sanitizeIndiaMobileInput(e.target.value) }))
+                  }
+                />
+              </div>
             </div>
             <div className="col-md-6">
               <label className="form-label" htmlFor="department">

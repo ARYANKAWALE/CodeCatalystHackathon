@@ -8,6 +8,13 @@ import {
   getCoursesForDepartment,
   getDefaultCourseForDepartment,
 } from '../constants/studentProfile';
+import {
+  IN_MOBILE_DIGITS,
+  IN_PHONE_PREFIX,
+  isValidIndiaMobileDigits,
+  sanitizeIndiaMobileInput,
+  toIndiaE164,
+} from '../utils/phoneIndia';
 
 export default function Register() {
   const { user, loading, register } = useAuth();
@@ -46,10 +53,14 @@ export default function Register() {
 
     const data = { username: form.username.trim(), email: form.email.trim(), password: form.password, role };
     if (role === 'student') {
+      if (form.phone && !isValidIndiaMobileDigits(form.phone)) {
+        setError(`Enter a valid Indian mobile (${IN_MOBILE_DIGITS} digits starting with 6–9) after ${IN_PHONE_PREFIX}, or leave phone blank`);
+        return;
+      }
       Object.assign(data, {
         name: form.name.trim(), roll_number: form.roll_number.trim(),
         department: form.department, course: form.course, year: parseInt(form.year, 10),
-        phone: form.phone.trim(), skills: form.skills.trim(),
+        phone: toIndiaE164(form.phone), skills: form.skills.trim(),
       });
       if (form.cgpa.trim()) data.cgpa = parseFloat(form.cgpa);
     }
@@ -168,7 +179,18 @@ export default function Register() {
               <div className="row g-3 mb-3">
                 <div className="col-sm-6">
                   <label className="form-label">Phone</label>
-                  <input className="form-control" value={form.phone} onChange={set('phone')} />
+                  <div className="input-group">
+                    <span className="input-group-text">{IN_PHONE_PREFIX}</span>
+                    <input
+                      className="form-control"
+                      inputMode="numeric"
+                      autoComplete="tel-national"
+                      maxLength={IN_MOBILE_DIGITS}
+                      placeholder="10-digit mobile"
+                      value={form.phone}
+                      onChange={(e) => setForm((f) => ({ ...f, phone: sanitizeIndiaMobileInput(e.target.value) }))}
+                    />
+                  </div>
                 </div>
                 <div className="col-sm-6">
                   <label className="form-label">Skills</label>
