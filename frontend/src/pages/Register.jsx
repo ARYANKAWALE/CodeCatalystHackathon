@@ -2,7 +2,12 @@ import { useState } from 'react';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { DEPARTMENTS, COURSE_GROUPS, DEFAULT_COURSE } from '../constants/studentProfile';
+import {
+  DEPARTMENTS,
+  getCourseGroupsForDepartment,
+  getCoursesForDepartment,
+  getDefaultCourseForDepartment,
+} from '../constants/studentProfile';
 
 export default function Register() {
   const { user, loading, register } = useAuth();
@@ -11,7 +16,7 @@ export default function Register() {
   const [role, setRole] = useState('student');
   const [form, setForm] = useState({
     username: '', email: '', password: '', confirmPassword: '',
-    name: '', roll_number: '', department: DEPARTMENTS[0], course: DEFAULT_COURSE, year: '1',
+    name: '', roll_number: '', department: DEPARTMENTS[0], course: getDefaultCourseForDepartment(DEPARTMENTS[0]), year: '1',
     phone: '', cgpa: '', skills: '',
   });
   const [showPw, setShowPw] = useState(false);
@@ -23,6 +28,15 @@ export default function Register() {
   if (user) return <Navigate to="/dashboard" replace />;
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const onDepartmentChange = (e) => {
+    const department = e.target.value;
+    setForm((f) => {
+      const allowed = getCoursesForDepartment(department);
+      const course = allowed.includes(f.course) ? f.course : getDefaultCourseForDepartment(department);
+      return { ...f, department, course };
+    });
+  };
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -124,7 +138,7 @@ export default function Register() {
               <div className="row g-3 mb-3">
                 <div className="col-sm-5">
                   <label className="form-label">Department</label>
-                  <select className="form-select" value={form.department} onChange={set('department')} required>
+                  <select className="form-select" value={form.department} onChange={onDepartmentChange} required>
                     {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
@@ -141,7 +155,7 @@ export default function Register() {
                 <div className="col-12">
                   <label className="form-label">Course / program</label>
                   <select className="form-select" value={form.course} onChange={set('course')} required>
-                    {COURSE_GROUPS.map((g) => (
+                    {getCourseGroupsForDepartment(form.department).map((g) => (
                       <optgroup key={g.label} label={g.label}>
                         {g.options.map((c) => (
                           <option key={c} value={c}>{c}</option>

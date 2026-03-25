@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
-import { DEPARTMENTS, COURSE_GROUPS, DEFAULT_COURSE, ALL_COURSES } from '../constants/studentProfile';
+import {
+  DEPARTMENTS,
+  getCourseGroupsForDepartment,
+  getCoursesForDepartment,
+  getDefaultCourseForDepartment,
+} from '../constants/studentProfile';
 
 const emptyForm = {
   name: '',
@@ -9,7 +14,7 @@ const emptyForm = {
   email: '',
   phone: '',
   department: DEPARTMENTS[0],
-  course: DEFAULT_COURSE,
+  course: getDefaultCourseForDepartment(DEPARTMENTS[0]),
   year: '1',
   cgpa: '',
   skills: '',
@@ -43,7 +48,7 @@ export default function StudentForm() {
             course:
               s.course && String(s.course).trim()
                 ? String(s.course).trim()
-                : DEFAULT_COURSE,
+                : getDefaultCourseForDepartment(s.department ?? DEPARTMENTS[0]),
             year: s.year != null ? String(s.year) : '1',
             cgpa: s.cgpa != null ? String(s.cgpa) : '',
             skills: s.skills ?? '',
@@ -65,6 +70,15 @@ export default function StudentForm() {
   const onChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const onDepartmentChange = (e) => {
+    const department = e.target.value;
+    setForm((prev) => {
+      const allowed = getCoursesForDepartment(department);
+      const course = allowed.includes(prev.course) ? prev.course : getDefaultCourseForDepartment(department);
+      return { ...prev, department, course };
+    });
   };
 
   const onSubmit = async (e) => {
@@ -187,7 +201,7 @@ export default function StudentForm() {
                 name="department"
                 className="form-select"
                 value={form.department}
-                onChange={onChange}
+                onChange={onDepartmentChange}
                 required
               >
                 {form.department && !DEPARTMENTS.includes(form.department) && (
@@ -212,10 +226,10 @@ export default function StudentForm() {
                 onChange={onChange}
                 required
               >
-                {form.course && !ALL_COURSES.includes(form.course) && (
+                {form.course && !getCoursesForDepartment(form.department).includes(form.course) && (
                   <option value={form.course}>{form.course}</option>
                 )}
-                {COURSE_GROUPS.map((g) => (
+                {getCourseGroupsForDepartment(form.department).map((g) => (
                   <optgroup key={g.label} label={g.label}>
                     {g.options.map((c) => (
                       <option key={c} value={c}>
