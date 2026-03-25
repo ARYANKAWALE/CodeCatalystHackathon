@@ -10,12 +10,32 @@ from email.message import EmailMessage
 logger = logging.getLogger(__name__)
 
 
+def _valid_recipient_addr(to_addr: str) -> bool:
+    """Reject malformed addresses (e.g. user@@domain.com) before SMTP."""
+    s = (to_addr or "").strip()
+    if not s or " " in s:
+        return False
+    if s.count("@") != 1:
+        return False
+    local, _, domain = s.partition("@")
+    return bool(local and domain)
+
+
 def mail_ready(cfg: dict) -> bool:
-    return bool((cfg.get("MAIL_SERVER") or "").strip() and (cfg.get("MAIL_DEFAULT_SENDER") or "").strip())
+    """True when SMTP host is set and we have a From address (explicit or MAIL_USERNAME)."""
+    server = (cfg.get("MAIL_SERVER") or "").strip()
+    sender = (cfg.get("MAIL_DEFAULT_SENDER") or cfg.get("MAIL_USERNAME") or "").strip()
+    return bool(server and sender)
 
 
 def send_plain_email(cfg: dict, to_addr: str, subject: str, body: str) -> bool:
     to_addr = (to_addr or "").strip()
+    if not _valid_recipient_addr(to_addr):
+        logger.error(
+            "Invalid recipient email %r — use a single @ (e.g. name@gmail.com), not @@ or spaces.",
+            to_addr,
+        )
+        return False
     server_host = (cfg.get("MAIL_SERVER") or "").strip()
     sender = (cfg.get("MAIL_DEFAULT_SENDER") or cfg.get("MAIL_USERNAME") or "").strip()
     if not server_host or not to_addr or not sender:
@@ -133,7 +153,8 @@ def schedule_plain_email(app, to_addr: str, subject: str, body: str) -> None:
         return
     if not mail_ready(cfg):
         logger.warning(
-            "Email skipped: set MAIL_SERVER and MAIL_DEFAULT_SENDER (or MAIL_USERNAME) in .env / environment"
+            "Email skipped: set MAIL_SERVER and MAIL_USERNAME (and MAIL_PASSWORD for authenticated SMTP) "
+            "in backend/.env — MAIL_DEFAULT_SENDER defaults to MAIL_USERNAME if unset."
         )
         return
 

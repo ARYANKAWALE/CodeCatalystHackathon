@@ -18,6 +18,13 @@ if __name__ == "__main__":
     if not to:
         print("Usage: python test_smtp.py recipient@email.com")
         sys.exit(1)
+    if to.count("@") != 1 or "@@" in to:
+        print(
+            "Invalid address — use exactly one @.\n"
+            f"  You passed: {to!r}\n"
+            "  Example:    python test_smtp.py aryankawale13@gmail.com"
+        )
+        sys.exit(1)
 
     app = Flask(__name__)
     app.config.from_object(Config)

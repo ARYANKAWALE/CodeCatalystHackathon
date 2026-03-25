@@ -138,12 +138,6 @@ export default function Dashboard() {
           <Link to="/appeals" className="btn btn-outline-secondary btn-sm">My requests</Link>
           <Link to="/reports/me" className="btn btn-outline-secondary btn-sm">My report</Link>
         </div>
-        {(data.appeal_counts && (data.appeal_counts.pending > 0 || data.appeal_counts.accepted > 0 || data.appeal_counts.rejected > 0)) && (
-          <div className="alert alert-info py-2 mb-4 small">
-            Appeals: {data.appeal_counts.pending ?? 0} pending, {data.appeal_counts.accepted ?? 0} accepted, {data.appeal_counts.rejected ?? 0} rejected.
-            {' '}<Link to="/appeals">View all</Link>
-          </div>
-        )}
 
         <div className="info-grid mb-4">
           <div className="info-item">

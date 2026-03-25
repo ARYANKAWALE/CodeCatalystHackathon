@@ -93,11 +93,25 @@ def student_primary_email(user):
     """Registered email for notifications: student profile email when linked, else account email."""
     if (getattr(user, "role", None) or "").strip().lower() != "student":
         return None
+    account = (user.email or "").strip() or None
     if user.student_id:
         stu = db.session.get(Student, user.student_id)
-        if stu and (stu.email or "").strip():
-            return stu.email.strip()
-    return (user.email or "").strip() or None
+        if stu:
+            prof = (stu.email or "").strip()
+            if prof:
+                return prof
+    return account
+
+
+def student_notification_email(student):
+    """Deliver to Student.profile email when set, else linked User account email."""
+    if student is None:
+        return None
+    e = (student.email or "").strip()
+    if e:
+        return e
+    u = User.query.filter_by(student_id=student.id).first()
+    return (u.email or "").strip() if u else None
 
 
 def user_account_email_for_reset(user):
@@ -219,7 +233,8 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({"error": "Invalid username or password"}), 401
     token = create_token(user)
-    to_addr = student_primary_email(user)
+    # Students: profile email if set, else account email. Admins: account email.
+    to_addr = student_primary_email(user) or (user.email or "").strip() or None
     if to_addr:
         when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         schedule_plain_email(
@@ -811,10 +826,33 @@ def placements_update(id):
         placement.offer_date = parse_date(data["offer_date"])
     if "joining_date" in data:
         placement.joining_date = parse_date(data["joining_date"])
+    old_status = placement.status
     if "status" in data:
         placement.status = data["status"]
     try:
         db.session.commit()
+        if "status" in data and placement.status != old_status:
+            stu = placement.student
+            to_addr = student_notification_email(stu)
+            if to_addr and stu:
+                cname = placement.company.name if placement.company else "the company"
+                schedule_plain_email(
+                    app,
+                    to_addr,
+                    "PlaceTrack — Placement status update",
+                    (
+                        f"Hello {stu.name},\n\n"
+                        f"Your placement ({placement.role}) at {cname} was updated.\n"
+                        f"Status: {old_status} → {placement.status}\n\n"
+                        "— PlaceTrack"
+                    ),
+                )
+            elif stu and not to_addr:
+                logging.getLogger(__name__).warning(
+                    "Placement %s status email skipped: no email for student id=%s",
+                    placement.id,
+                    stu.id,
+                )
         return jsonify(placement.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -880,12 +918,13 @@ def appeals_create():
         db.session.commit()
         student = db.session.get(Student, vsid)
         company = db.session.get(Company, cid)
-        if student and (student.email or "").strip():
+        to_appeal = student_notification_email(student)
+        if student and to_appeal:
             kind = "internship" if appeal_type == "internship" else "placement"
             cname = company.name if company else "the company"
             schedule_plain_email(
                 app,
-                student.email.strip(),
+                to_appeal,
                 f"PlaceTrack — {kind.title()} request received",
                 (
                     f"Hello {student.name},\n\n"
@@ -993,12 +1032,13 @@ def appeals_accept(id):
         appeal.reviewer_user_id = g.current_user.id
         db.session.commit()
         stu = appeal.student
-        if stu and (stu.email or "").strip():
+        to_acc = student_notification_email(stu)
+        if stu and to_acc:
             kind = appeal.appeal_type
             cname = appeal.company.name if appeal.company else "the company"
             schedule_plain_email(
                 app,
-                stu.email.strip(),
+                to_acc,
                 f"PlaceTrack — {kind.title()} request accepted",
                 (
                     f"Hello {stu.name},\n\n"
@@ -1030,13 +1070,14 @@ def appeals_reject(id):
     try:
         db.session.commit()
         stu = appeal.student
-        if stu and (stu.email or "").strip():
+        to_rej = student_notification_email(stu)
+        if stu and to_rej:
             kind = appeal.appeal_type
             cname = appeal.company.name if appeal.company else "the company"
             note_line = f"\nNote from admin: {note}\n" if note else ""
             schedule_plain_email(
                 app,
-                stu.email.strip(),
+                to_rej,
                 f"PlaceTrack — {kind.title()} request update",
                 (
                     f"Hello {stu.name},\n\n"
