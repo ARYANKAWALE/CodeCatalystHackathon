@@ -22,6 +22,17 @@ class Config:
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_DATABASE_URI = db_url
 
+    # Avoid hanging forever when MySQL/Postgres is down (first query blocks on connect).
+    _db_connect_timeout = int(_env_strip("DB_CONNECT_TIMEOUT", "12") or "12")
+    _engine_opts = {"pool_pre_ping": True, "pool_recycle": 280}
+    _db_lower = db_url.lower()
+    if "sqlite" not in _db_lower:
+        if "pymysql" in _db_lower or "mysql" in _db_lower:
+            _engine_opts["connect_args"] = {"connect_timeout": _db_connect_timeout}
+        elif "postgresql" in _db_lower:
+            _engine_opts["connect_args"] = {"connect_timeout": _db_connect_timeout}
+    SQLALCHEMY_ENGINE_OPTIONS = _engine_opts
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_EXPIRATION_HOURS = 24
 

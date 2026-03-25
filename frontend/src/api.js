@@ -47,15 +47,48 @@ function getToken() {
   return localStorage.getItem('token');
 }
 
+/** Avoid hanging indefinitely if the API or DB never responds. */
+const REQUEST_TIMEOUT_MS = 30000;
+
+function timeoutSignal(ms) {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms);
+  }
+  const c = new AbortController();
+  setTimeout(() => c.abort(), ms);
+  return c.signal;
+}
+
+function isAnonymousAuthRequest(url, method) {
+  const m = String(method || 'GET').toUpperCase();
+  if (m !== 'POST') return false;
+  return (
+    url.includes('auth/login') ||
+    url.includes('auth/register') ||
+    url.includes('auth/forgot-password') ||
+    url.includes('auth/reset-password')
+  );
+}
+
 async function request(url, options = {}) {
-  const token = getToken();
+  const method = String(options.method || 'GET').toUpperCase();
+  const token = isAnonymousAuthRequest(url, method) ? null : getToken();
   const headers = { 'Content-Type': 'application/json', ...options.headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   let res;
   try {
-    res = await fetch(apiUrl(url), { ...options, headers });
+    res = await fetch(apiUrl(url), {
+      ...options,
+      headers,
+      signal: timeoutSignal(REQUEST_TIMEOUT_MS),
+    });
   } catch (e) {
+    if (e && e.name === 'AbortError') {
+      throw new Error(
+        `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. If you use MySQL/Postgres, ensure the database is running and DATABASE_URL in backend/.env is correct.`,
+      );
+    }
     const msg =
       e && typeof e.message === 'string' && e.message
         ? e.message
