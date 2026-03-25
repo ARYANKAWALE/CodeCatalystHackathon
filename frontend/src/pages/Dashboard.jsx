@@ -65,6 +65,72 @@ function fmt(v) {
   return v;
 }
 
+function StudentResumeSection({ resumeLink, onSaved }) {
+  const [link, setLink] = useState(resumeLink || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [ok, setOk] = useState(false);
+
+  useEffect(() => {
+    setLink(resumeLink || '');
+  }, [resumeLink]);
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    setOk(false);
+    try {
+      const res = await api.patch('/me/resume', { resume_link: link });
+      onSaved(res.resume_link ?? '');
+      setOk(true);
+      window.setTimeout(() => setOk(false), 4000);
+    } catch (err) {
+      setError(err.message || 'Could not save resume link');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="card border-0 shadow-sm mb-4">
+      <div className="card-body">
+        <h3 className="h6 mb-1">Resume (PDF link)</h3>
+        <p className="text-muted small mb-3">
+          Add a link where your resume is available as a PDF (shared Drive/Dropbox link, portfolio, or direct .pdf URL).
+        </p>
+        {error && <div className="alert alert-danger py-2 small mb-3" role="alert">{error}</div>}
+        {ok && <div className="alert alert-success py-2 small mb-3" role="alert">Resume link saved.</div>}
+        <form onSubmit={onSubmit} className="d-flex flex-column gap-2">
+          <input
+            type="url"
+            className="form-control"
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            placeholder="https://…"
+            aria-label="Resume PDF URL"
+          />
+          <div className="d-flex flex-wrap gap-2 align-items-center">
+            <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
+              {saving ? 'Saving…' : 'Save resume link'}
+            </button>
+            {resumeLink ? (
+              <a
+                href={resumeLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-outline-secondary btn-sm"
+              >
+                Open current link
+              </a>
+            ) : null}
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const location = useLocation();
@@ -134,6 +200,16 @@ export default function Dashboard() {
             {s.roll_number} · {s.department}
           </p>
         </div>
+
+        <StudentResumeSection
+          resumeLink={s.resume_link}
+          onSaved={(newLink) => {
+            setData((prev) => {
+              if (!prev || prev.type !== 'student' || !prev.student) return prev;
+              return { ...prev, student: { ...prev.student, resume_link: newLink || null } };
+            });
+          }}
+        />
 
         <div className="d-flex flex-wrap gap-2 mb-4">
           <Link to="/appeals/new" className="btn btn-primary btn-sm">New request to company</Link>

@@ -5,6 +5,7 @@ import os
 import secrets
 from datetime import datetime, date, timedelta, timezone
 from functools import wraps
+from urllib.parse import urlparse
 
 import jwt
 from flask import Flask, jsonify, request, send_file, send_from_directory, g
@@ -20,7 +21,7 @@ STATIC_FOLDER = os.path.join(os.path.dirname(__file__), "static_frontend")
 app = Flask(__name__, static_folder=STATIC_FOLDER, static_url_path="")
 app.config.from_object(Config)
 
-CORS(app, resources={r"/api/*": {"origins": "*"}}, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization"])
+CORS(app, resources={r"/api/*": {"origins": "*"}}, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization"])
 db.init_app(app)
 
 logging.getLogger("mail_utils").setLevel(logging.INFO)
@@ -526,6 +527,50 @@ def students_delete(id):
     db.session.delete(student)
     db.session.commit()
     return jsonify({"message": "Student deleted"})
+
+
+RESUME_LINK_MAX_LEN = 2048
+
+
+def _validate_resume_url(link):
+    """Empty clears the field. Non-empty must be http(s) with a host."""
+    s = (link or "").strip() if isinstance(link, str) else ""
+    if not s:
+        return "", None
+    if len(s) > RESUME_LINK_MAX_LEN:
+        return None, f"Link must be at most {RESUME_LINK_MAX_LEN} characters"
+    parsed = urlparse(s)
+    if parsed.scheme not in ("http", "https"):
+        return None, "Resume link must start with http:// or https://"
+    if not parsed.netloc:
+        return None, "Resume link is not a valid URL"
+    return s, None
+
+
+@app.route("/api/me/resume", methods=["PATCH"])
+@token_required
+def me_resume_patch():
+    """Linked students may set or clear their resume PDF URL."""
+    if current_user_role() != "student":
+        return jsonify({"error": "Students only"}), 403
+    sid = g.current_user.student_id
+    if not sid:
+        return jsonify({"error": "No student profile linked to this account"}), 400
+    student = db.session.get(Student, sid)
+    if not student:
+        return jsonify({"error": "Student not found"}), 404
+    data = request.get_json() or {}
+    raw = data.get("resume_link", "")
+    normalized, err = _validate_resume_url(raw)
+    if err:
+        return jsonify({"error": err}), 400
+    student.resume_link = normalized or None
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"resume_link": student.resume_link or ""})
 
 
 # ══════════════════════════════════════════════════════════════════════════════

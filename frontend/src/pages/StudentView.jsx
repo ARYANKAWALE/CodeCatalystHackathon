@@ -132,7 +132,7 @@ export default function StudentView() {
           <div className="value">{fmt(student.skills)}</div>
         </div>
         <div className="info-item" style={{ gridColumn: '1 / -1' }}>
-          <div className="label">Resume link</div>
+          <div className="label">Resume</div>
           <div className="value">
             {student.resume_link ? (
               <a href={student.resume_link} target="_blank" rel="noopener noreferrer">

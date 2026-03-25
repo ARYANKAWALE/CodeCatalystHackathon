@@ -95,7 +95,7 @@ class Student(db.Model):
     year = db.Column(db.Integer, nullable=False)
     cgpa = db.Column(db.Float)
     skills = db.Column(db.Text)
-    resume_link = db.Column(db.String(300))
+    resume_link = db.Column(db.String(2048))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     internships = db.relationship("Internship", backref="student", lazy=True, cascade="all, delete-orphan")

@@ -234,7 +234,7 @@ export default function StudentForm() {
             </div>
             <div className="col-12">
               <label className="form-label" htmlFor="resume_link">
-                Resume link
+                Resume (PDF URL)
               </label>
               <input
                 id="resume_link"
@@ -243,7 +243,7 @@ export default function StudentForm() {
                 className="form-control"
                 value={form.resume_link}
                 onChange={onChange}
-                placeholder="https://"
+                placeholder="https://… (link to PDF)"
               />
             </div>
           </div>
