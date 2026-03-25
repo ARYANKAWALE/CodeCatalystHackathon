@@ -2,6 +2,15 @@
 from app import app, db
 from models import Student
 
+SEED_DEPT_TO_COURSE = {
+    "Computer Science": "Computer Science and Engineering (CSE)",
+    "Electronics": "Electronics and Telecommunication Engineering (ETC)",
+    "Mechanical": "Mechanical Engineering",
+    "Information Technology": "Information Technology (IT)",
+    "Electrical": "Electrical Engineering",
+    "Civil": "Civil Engineering",
+}
+
 NEW_STUDENTS = [
     ("Tanvi Kulkarni", "CS2022016", "tanvi.kulkarni@college.edu", "9876543225", "Computer Science", 3, 8.8, "Python, FastAPI, Docker"),
     ("Harsh Agarwal", "EC2022017", "harsh.agarwal@college.edu", "9876543226", "Electronics", 2, 7.4, "VHDL, FPGA, Verilog"),
@@ -21,9 +30,10 @@ with app.app_context():
         if Student.query.filter_by(roll_number=roll).first():
             print(f"  Skipping {name} ({roll}) — already exists")
             continue
+        course = SEED_DEPT_TO_COURSE.get(dept, "Computer Science and Engineering (CSE)")
         db.session.add(Student(
             name=name, roll_number=roll, email=email, phone=phone,
-            department=dept, year=year, cgpa=cgpa, skills=skills,
+            department=dept, course=course, year=year, cgpa=cgpa, skills=skills,
         ))
         added += 1
         print(f"  Added {name} ({roll})")

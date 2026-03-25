@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { DEPARTMENTS, COURSE_GROUPS, DEFAULT_COURSE, ALL_COURSES } from '../constants/studentProfile';
 
 const emptyForm = {
   name: '',
   roll_number: '',
   email: '',
   phone: '',
-  department: '',
+  department: DEPARTMENTS[0],
+  course: DEFAULT_COURSE,
   year: '1',
   cgpa: '',
   skills: '',
@@ -37,7 +39,11 @@ export default function StudentForm() {
             roll_number: s.roll_number ?? '',
             email: s.email ?? '',
             phone: s.phone ?? '',
-            department: s.department ?? '',
+            department: s.department ?? DEPARTMENTS[0],
+            course:
+              s.course && String(s.course).trim()
+                ? String(s.course).trim()
+                : DEFAULT_COURSE,
             year: s.year != null ? String(s.year) : '1',
             cgpa: s.cgpa != null ? String(s.cgpa) : '',
             skills: s.skills ?? '',
@@ -71,6 +77,7 @@ export default function StudentForm() {
       email: form.email.trim(),
       phone: form.phone.trim(),
       department: form.department.trim(),
+      course: form.course.trim(),
       year: parseInt(form.year, 10),
       skills: form.skills.trim(),
       resume_link: form.resume_link.trim(),
@@ -175,14 +182,49 @@ export default function StudentForm() {
               <label className="form-label" htmlFor="department">
                 Department <span className="text-danger">*</span>
               </label>
-              <input
+              <select
                 id="department"
                 name="department"
-                className="form-control"
+                className="form-select"
                 value={form.department}
                 onChange={onChange}
                 required
-              />
+              >
+                {form.department && !DEPARTMENTS.includes(form.department) && (
+                  <option value={form.department}>{form.department}</option>
+                )}
+                {DEPARTMENTS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-12">
+              <label className="form-label" htmlFor="course">
+                Course / program <span className="text-danger">*</span>
+              </label>
+              <select
+                id="course"
+                name="course"
+                className="form-select"
+                value={form.course}
+                onChange={onChange}
+                required
+              >
+                {form.course && !ALL_COURSES.includes(form.course) && (
+                  <option value={form.course}>{form.course}</option>
+                )}
+                {COURSE_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.options.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </div>
             <div className="col-md-6">
               <label className="form-label" htmlFor="year">

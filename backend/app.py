@@ -174,16 +174,17 @@ def register():
         roll_number = data.get("roll_number", "").strip()
         name = data.get("name", "").strip()
         department = data.get("department", "").strip()
+        course = data.get("course", "").strip()
         year = data.get("year")
-        if not roll_number or not name or not department or not year:
-            return jsonify({"error": "Student registration requires name, roll_number, department, and year"}), 400
+        if not roll_number or not name or not department or not course or not year:
+            return jsonify({"error": "Student registration requires name, roll_number, department, course, and year"}), 400
         if Student.query.filter_by(roll_number=roll_number).first():
             return jsonify({"error": "Roll number already exists"}), 409
         if Student.query.filter_by(email=email).first():
             return jsonify({"error": "A student with this email already exists"}), 409
         student = Student(
             name=name, roll_number=roll_number, email=email,
-            department=department, year=int(year),
+            department=department, course=course, year=int(year),
             phone=data.get("phone", "").strip(),
             cgpa=float(data["cgpa"]) if data.get("cgpa") else None,
             skills=data.get("skills", "").strip(),
@@ -457,7 +458,7 @@ def students_list():
 @admin_required
 def students_create():
     data = request.get_json() or {}
-    required = ["name", "roll_number", "email", "department", "year"]
+    required = ["name", "roll_number", "email", "department", "course", "year"]
     for f in required:
         if not data.get(f):
             return jsonify({"error": f"{f} is required"}), 400
@@ -467,6 +468,7 @@ def students_create():
         email=data["email"].strip(),
         phone=data.get("phone", "").strip(),
         department=data["department"].strip(),
+        course=data["course"].strip(),
         year=int(data["year"]),
         cgpa=float(data["cgpa"]) if data.get("cgpa") else None,
         skills=data.get("skills", "").strip(),
@@ -500,7 +502,7 @@ def students_update(id):
     if not student:
         return jsonify({"error": "Student not found"}), 404
     data = request.get_json() or {}
-    for field in ["name", "roll_number", "email", "department", "year", "phone", "cgpa", "skills", "resume_link"]:
+    for field in ["name", "roll_number", "email", "department", "course", "year", "phone", "cgpa", "skills", "resume_link"]:
         if field in data:
             val = data[field]
             if field == "year":
@@ -1159,7 +1161,8 @@ def search():
     if not is_stu:
         students = [s.to_dict() for s in Student.query.filter(
             db.or_(Student.name.ilike(like), Student.roll_number.ilike(like),
-                   Student.email.ilike(like), Student.department.ilike(like), Student.skills.ilike(like))
+                   Student.email.ilike(like), Student.department.ilike(like),
+                   Student.course.ilike(like), Student.skills.ilike(like))
         ).limit(20).all()]
     else:
         students = []
@@ -1284,9 +1287,9 @@ def report_export(report_type):
 
     if report_type == "students":
         ws.title = "Students"
-        ws.append(["ID", "Name", "Roll Number", "Email", "Phone", "Department", "Year", "CGPA", "Skills"])
+        ws.append(["ID", "Name", "Roll Number", "Email", "Phone", "Department", "Course", "Year", "CGPA", "Skills"])
         for s in Student.query.order_by(Student.name).all():
-            ws.append([s.id, s.name, s.roll_number, s.email, s.phone, s.department, s.year, s.cgpa, s.skills])
+            ws.append([s.id, s.name, s.roll_number, s.email, s.phone, s.department, s.course, s.year, s.cgpa, s.skills])
     elif report_type == "companies":
         ws.title = "Companies"
         ws.append(["ID", "Name", "Industry", "Website", "Contact Person", "Contact Email", "Contact Phone"])
@@ -1413,11 +1416,26 @@ def _ensure_users_password_reset_columns():
         print("PlaceTrack: added column users.password_reset_expires")
 
 
+def _ensure_students_course_column():
+    inspector = sa_inspect(db.engine)
+    students_table = next((t for t in inspector.get_table_names() if t.lower() == "students"), None)
+    if not students_table:
+        return
+    qtbl = db.engine.dialect.identifier_preparer.quote(students_table)
+    col_names = {c["name"] for c in inspector.get_columns(students_table)}
+    if "course" in col_names:
+        return
+    with db.engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE {qtbl} ADD COLUMN course VARCHAR(200) NOT NULL DEFAULT ''"))
+    print("PlaceTrack: added column students.course")
+
+
 def _ensure_db_schema():
     """Create all tables; migrate legacy schemas."""
     db.create_all()
     _ensure_appeals_table()
     _ensure_users_password_reset_columns()
+    _ensure_students_course_column()
 
 
 with app.app_context():

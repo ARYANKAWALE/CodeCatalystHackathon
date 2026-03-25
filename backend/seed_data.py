@@ -4,6 +4,16 @@ from app import app, db, init_db
 from companies_extra import COMPANIES_EXTRA_50
 from models import User, Student, Company, Internship, Placement
 
+# Maps legacy seed department labels to a program name from the official course list.
+SEED_DEPT_TO_COURSE = {
+    "Computer Science": "Computer Science and Engineering (CSE)",
+    "Electronics": "Electronics and Telecommunication Engineering (ETC)",
+    "Mechanical": "Mechanical Engineering",
+    "Information Technology": "Information Technology (IT)",
+    "Electrical": "Electrical Engineering",
+    "Civil": "Civil Engineering",
+}
+
 STUDENTS = [
     ("Aarav Sharma", "CS2021001", "aarav.sharma@college.edu", "9876543210", "Computer Science", 4, 8.9, "Python, Java, Machine Learning"),
     ("Priya Patel", "CS2021002", "priya.patel@college.edu", "9876543211", "Computer Science", 4, 9.2, "React, Node.js, MongoDB"),
@@ -83,8 +93,9 @@ def seed():
 
         students = []
         for name, roll, email, phone, dept, year, cgpa, skills in STUDENTS:
+            course = SEED_DEPT_TO_COURSE.get(dept, "Computer Science and Engineering (CSE)")
             s = Student(name=name, roll_number=roll, email=email, phone=phone,
-                        department=dept, year=year, cgpa=cgpa, skills=skills)
+                        department=dept, course=course, year=year, cgpa=cgpa, skills=skills)
             db.session.add(s)
             students.append(s)
         db.session.flush()

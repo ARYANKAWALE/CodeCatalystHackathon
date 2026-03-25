@@ -92,6 +92,7 @@ class Student(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     phone = db.Column(db.String(15))
     department = db.Column(db.String(80), nullable=False)
+    course = db.Column(db.String(200), nullable=False, default="")
     year = db.Column(db.Integer, nullable=False)
     cgpa = db.Column(db.Float)
     skills = db.Column(db.Text)
@@ -110,6 +111,7 @@ class Student(db.Model):
             "email": self.email,
             "phone": self.phone,
             "department": self.department,
+            "course": self.course,
             "year": self.year,
             "cgpa": self.cgpa,
             "skills": self.skills,

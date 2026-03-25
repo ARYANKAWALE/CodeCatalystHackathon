@@ -109,6 +109,7 @@ export default function SearchResults() {
                     <th>Roll No</th>
                     <th>Email</th>
                     <th>Department</th>
+                    <th>Course</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -120,6 +121,7 @@ export default function SearchResults() {
                       <td>{s.roll_number}</td>
                       <td>{s.email}</td>
                       <td>{s.department}</td>
+                      <td>{s.course || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

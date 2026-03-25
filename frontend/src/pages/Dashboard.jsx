@@ -198,6 +198,7 @@ export default function Dashboard() {
           <h2>{s.name}</h2>
           <p className="meta mb-0">
             {s.roll_number} · {s.department}
+            {s.course ? ` · ${s.course}` : ''}
           </p>
         </div>
 

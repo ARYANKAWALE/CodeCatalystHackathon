@@ -117,6 +117,10 @@ export default function StudentView() {
           <div className="label">Department</div>
           <div className="value">{fmt(student.department)}</div>
         </div>
+        <div className="info-item" style={{ gridColumn: '1 / -1' }}>
+          <div className="label">Course / program</div>
+          <div className="value">{fmt(student.course)}</div>
+        </div>
         <div className="info-item">
           <div className="label">Year</div>
           <div className="value">{student.year != null ? String(student.year) : '—'}</div>

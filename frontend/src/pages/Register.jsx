@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-
-const DEPARTMENTS = ['Computer Science', 'Electronics', 'Mechanical', 'Information Technology', 'Civil', 'Electrical'];
+import { DEPARTMENTS, COURSE_GROUPS, DEFAULT_COURSE } from '../constants/studentProfile';
 
 export default function Register() {
   const { user, loading, register } = useAuth();
@@ -12,7 +11,7 @@ export default function Register() {
   const [role, setRole] = useState('student');
   const [form, setForm] = useState({
     username: '', email: '', password: '', confirmPassword: '',
-    name: '', roll_number: '', department: DEPARTMENTS[0], year: '1',
+    name: '', roll_number: '', department: DEPARTMENTS[0], course: DEFAULT_COURSE, year: '1',
     phone: '', cgpa: '', skills: '',
   });
   const [showPw, setShowPw] = useState(false);
@@ -35,7 +34,7 @@ export default function Register() {
     if (role === 'student') {
       Object.assign(data, {
         name: form.name.trim(), roll_number: form.roll_number.trim(),
-        department: form.department, year: parseInt(form.year, 10),
+        department: form.department, course: form.course, year: parseInt(form.year, 10),
         phone: form.phone.trim(), skills: form.skills.trim(),
       });
       if (form.cgpa.trim()) data.cgpa = parseFloat(form.cgpa);
@@ -58,7 +57,7 @@ export default function Register() {
         <i className={`bi ${dark ? 'bi-sun-fill' : 'bi-moon-fill'}`} />
       </button>
 
-      <div className="auth-card fade-in" style={{ maxWidth: 500 }}>
+      <div className="auth-card fade-in" style={{ maxWidth: 560 }}>
         <div className="text-center mb-4">
           <div className="brand-icon mx-auto mb-3" style={{ width: 52, height: 52, fontSize: '1.4rem' }}>
             <i className="bi bi-mortarboard-fill" />
@@ -125,8 +124,8 @@ export default function Register() {
               <div className="row g-3 mb-3">
                 <div className="col-sm-5">
                   <label className="form-label">Department</label>
-                  <select className="form-select" value={form.department} onChange={set('department')}>
-                    {DEPARTMENTS.map((d) => <option key={d}>{d}</option>)}
+                  <select className="form-select" value={form.department} onChange={set('department')} required>
+                    {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
                 <div className="col-sm-3">
@@ -138,6 +137,18 @@ export default function Register() {
                 <div className="col-sm-4">
                   <label className="form-label">CGPA</label>
                   <input type="number" step="0.01" min="0" max="10" className="form-control" value={form.cgpa} onChange={set('cgpa')} />
+                </div>
+                <div className="col-12">
+                  <label className="form-label">Course / program</label>
+                  <select className="form-select" value={form.course} onChange={set('course')} required>
+                    {COURSE_GROUPS.map((g) => (
+                      <optgroup key={g.label} label={g.label}>
+                        {g.options.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="row g-3 mb-3">

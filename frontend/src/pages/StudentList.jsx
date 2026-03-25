@@ -178,6 +178,7 @@ export default function StudentList() {
                 <th>Roll No</th>
                 <th>Email</th>
                 <th>Department</th>
+                <th>Course</th>
                 <th>Year</th>
                 <th>CGPA</th>
                 <th>Actions</th>
@@ -199,6 +200,7 @@ export default function StudentList() {
                     <td>{s.roll_number}</td>
                     <td>{s.email}</td>
                     <td>{s.department}</td>
+                    <td>{s.course || '—'}</td>
                     <td>{s.year}</td>
                     <td>{s.cgpa != null ? Number(s.cgpa).toFixed(2) : '—'}</td>
                     <td>
