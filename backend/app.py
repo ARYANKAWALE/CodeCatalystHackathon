@@ -526,9 +526,22 @@ def students_delete(id):
     student = db.session.get(Student, id)
     if not student:
         return jsonify({"error": "Student not found"}), 404
-    db.session.delete(student)
-    db.session.commit()
-    return jsonify({"message": "Student deleted"})
+    try:
+        # users.student_id FK blocks deleting the student row unless unlinked first
+        for u in User.query.filter_by(student_id=id).all():
+            role_lc = (getattr(u, "role", "") or "").strip().lower()
+            if role_lc == "student":
+                for a in Appeal.query.filter_by(reviewer_user_id=u.id).all():
+                    a.reviewer_user_id = None
+                db.session.delete(u)
+            else:
+                u.student_id = None
+        db.session.delete(student)
+        db.session.commit()
+        return jsonify({"message": "Student deleted"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 
 RESUME_LINK_MAX_LEN = 2048
