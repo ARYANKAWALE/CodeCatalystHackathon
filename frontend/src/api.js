@@ -1,3 +1,11 @@
+/** Thrown on HTTP 401 so callers can clear the session; distinguish from timeouts/network errors. */
+export class UnauthorizedError extends Error {
+  constructor(message = 'Unauthorized') {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
 /** Base URL without trailing slash. Local dev: `/api` (Vite proxy). Production: e.g. `https://your-api.onrender.com/api` */
 function apiBase() {
   const raw = import.meta.env.VITE_API_URL || '/api';
@@ -103,6 +111,7 @@ async function request(url, options = {}) {
     const publicAuthPost =
       method === 'POST' &&
       (url.includes('auth/login') ||
+        url.includes('auth/register') ||
         url.includes('auth/forgot-password') ||
         url.includes('auth/reset-password'));
     const ct = res.headers.get('content-type') || '';
@@ -115,10 +124,23 @@ async function request(url, options = {}) {
       }
       throw new Error('Invalid username or password');
     }
+    // Session bootstrap: let AuthContext decide — do not clear storage / hard-redirect here.
+    // Otherwise a 401 on /auth/me would stack with AuthContext; other 401s still log the user out below.
+    const isAuthMe = url.includes('auth/me');
+    if (isAuthMe) {
+      if (ct.includes('application/json')) {
+        try {
+          await res.json();
+        } catch {
+          /* ignore */
+        }
+      }
+      throw new UnauthorizedError();
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '/login';
-    throw new Error('Unauthorized');
+    throw new UnauthorizedError();
   }
 
   if (options.raw) return res;

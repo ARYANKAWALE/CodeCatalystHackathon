@@ -11,6 +11,7 @@ import jwt
 from flask import Flask, jsonify, request, send_file, send_from_directory, g
 from flask_cors import CORS
 from sqlalchemy import false as sql_false, func, inspect as sa_inspect, text
+from sqlalchemy.orm import joinedload
 
 from config import Config
 from mail_utils import schedule_plain_email
@@ -239,20 +240,20 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({"error": "Invalid username or password"}), 401
     token = create_token(user)
-    # Students: profile email if set, else account email. Admins: account email.
-    to_addr = student_primary_email(user) or (user.email or "").strip() or None
-    if to_addr:
-        when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        schedule_plain_email(
-            app,
-            to_addr,
-            "PlaceTrack — You signed in",
-            (
-                f"Hello,\n\nYour PlaceTrack account ({user.username}) was used to sign in at {when}.\n\n"
-                "If this was not you, secure your account by changing your password.\n\n"
-                "— PlaceTrack"
-            ),
-        )
+    if app.config.get("MAIL_SIGN_IN_EMAIL"):
+        to_addr = student_primary_email(user) or (user.email or "").strip() or None
+        if to_addr:
+            when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+            schedule_plain_email(
+                app,
+                to_addr,
+                "PlaceTrack — You signed in",
+                (
+                    f"Hello,\n\nYour PlaceTrack account ({user.username}) was used to sign in at {when}.\n\n"
+                    "If this was not you, secure your account by changing your password.\n\n"
+                    "— PlaceTrack"
+                ),
+            )
     return jsonify({"token": token, "user": user.to_dict()})
 
 
@@ -360,27 +361,71 @@ def auth_change_password():
 # DASHBOARD
 # ══════════════════════════════════════════════════════════════════════════════
 
+
+def _counts_grouped(model, statuses_tuple):
+    """Single query: {status: count} for all known statuses (missing = 0)."""
+    rows = db.session.query(model.status, func.count(model.id)).group_by(model.status).all()
+    out = {s: 0 for s in statuses_tuple}
+    for st, n in rows:
+        if st in out:
+            out[st] = int(n)
+    return out
+
+
 @app.route("/api/dashboard")
 @token_required
 def dashboard():
     if current_user_role() == "student" and g.current_user.student_id:
-        student = db.session.get(Student, g.current_user.student_id)
+        sid = g.current_user.student_id
+        student = (
+            Student.query.options(
+                joinedload(Student.internships).joinedload(Internship.student),
+                joinedload(Student.internships).joinedload(Internship.company),
+                joinedload(Student.placements).joinedload(Placement.student),
+                joinedload(Student.placements).joinedload(Placement.company),
+            )
+            .filter_by(id=sid)
+            .first()
+        )
         if not student:
             return jsonify({"error": "Student not found"}), 404
-        sid = g.current_user.student_id
-        appeal_counts = {s: Appeal.query.filter_by(student_id=sid, status=s).count() for s in Appeal.STATUSES}
+        appeal_rows = (
+            db.session.query(Appeal.status, func.count(Appeal.id))
+            .filter(Appeal.student_id == sid)
+            .group_by(Appeal.status)
+            .all()
+        )
+        appeal_counts = {s: 0 for s in Appeal.STATUSES}
+        for st, n in appeal_rows:
+            if st in appeal_counts:
+                appeal_counts[st] = int(n)
         return jsonify({
             "type": "student",
             "student": student.to_dict(include_relations=True),
             "appeal_counts": appeal_counts,
         })
 
-    total_students = Student.query.count()
-    total_companies = Company.query.count()
-    total_internships = Internship.query.count()
-    total_placements = Placement.query.count()
-    active_internships = Internship.query.filter_by(status="ongoing").count()
-    completed_internships = Internship.query.filter_by(status="completed").count()
+    # One round-trip for common totals (important on remote Postgres e.g. Render).
+    totals = db.session.execute(
+        text(
+            "SELECT "
+            "(SELECT COUNT(*) FROM students) AS n_students, "
+            "(SELECT COUNT(*) FROM companies) AS n_companies, "
+            "(SELECT COUNT(*) FROM internships) AS n_internships, "
+            "(SELECT COUNT(*) FROM placements) AS n_placements, "
+            "(SELECT COUNT(*) FROM internships WHERE status = 'ongoing') AS n_active_internships, "
+            "(SELECT COUNT(*) FROM internships WHERE status = 'completed') AS n_completed_internships, "
+            "(SELECT COUNT(*) FROM appeals WHERE status = 'pending') AS n_pending_appeals"
+        )
+    ).mappings().one()
+    total_students = int(totals["n_students"] or 0)
+    total_companies = int(totals["n_companies"] or 0)
+    total_internships = int(totals["n_internships"] or 0)
+    total_placements = int(totals["n_placements"] or 0)
+    active_internships = int(totals["n_active_internships"] or 0)
+    completed_internships = int(totals["n_completed_internships"] or 0)
+    pending_appeals = int(totals["n_pending_appeals"] or 0)
+
     # Students with at least one placed placement (not raw placement row count)
     placed_count = (
         db.session.query(func.count(func.distinct(Placement.student_id)))
@@ -389,20 +434,45 @@ def dashboard():
     )
     placed_count = int(placed_count or 0)
 
-    placed = Placement.query.filter_by(status="placed").all()
-    avg_package = round(sum(p.package_lpa for p in placed) / len(placed), 2) if placed else 0
-    highest_package = max((p.package_lpa for p in placed), default=0)
+    agg = (
+        db.session.query(
+            func.avg(Placement.package_lpa),
+            func.max(Placement.package_lpa),
+        )
+        .filter(Placement.status == "placed")
+        .one()
+    )
+    avg_raw, max_raw = agg[0], agg[1]
+    avg_package = round(float(avg_raw), 2) if avg_raw is not None else 0
+    highest_package = float(max_raw) if max_raw is not None else 0
 
     dept_stats = db.session.query(
         Student.department, db.func.count(Student.id)
     ).group_by(Student.department).all()
 
-    internship_status_counts = {s: Internship.query.filter_by(status=s).count() for s in Internship.STATUSES}
-    placement_status_counts = {s: Placement.query.filter_by(status=s).count() for s in Placement.STATUSES}
+    internship_status_counts = _counts_grouped(Internship, Internship.STATUSES)
+    placement_status_counts = _counts_grouped(Placement, Placement.STATUSES)
 
-    recent_placements = [p.to_dict() for p in Placement.query.order_by(Placement.created_at.desc()).limit(5).all()]
-    recent_internships = [i.to_dict() for i in Internship.query.order_by(Internship.created_at.desc()).limit(5).all()]
-    pending_appeals = Appeal.query.filter_by(status="pending").count()
+    recent_placements = [
+        p.to_dict()
+        for p in Placement.query.options(
+            joinedload(Placement.student),
+            joinedload(Placement.company),
+        )
+        .order_by(Placement.created_at.desc())
+        .limit(5)
+        .all()
+    ]
+    recent_internships = [
+        i.to_dict()
+        for i in Internship.query.options(
+            joinedload(Internship.student),
+            joinedload(Internship.company),
+        )
+        .order_by(Internship.created_at.desc())
+        .limit(5)
+        .all()
+    ]
 
     return jsonify({
         "type": "admin",

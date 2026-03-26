@@ -51,3 +51,6 @@ class Config:
     # Base URL of the React app (no trailing slash). Used in password-reset emails.
     FRONTEND_URL = _env_strip("FRONTEND_URL", "http://localhost:5173")
     PASSWORD_RESET_EXPIRATION_MINUTES = int(_env_strip("PASSWORD_RESET_EXPIRATION_MINUTES", "60") or "60")
+
+    # "You signed in" notification (adds DB work + mail thread). Set MAIL_SIGN_IN_EMAIL=true to enable.
+    MAIL_SIGN_IN_EMAIL = _env_strip("MAIL_SIGN_IN_EMAIL", "false").lower() in ("1", "true", "yes")

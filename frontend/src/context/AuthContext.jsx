@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '../api';
+import { api, UnauthorizedError } from '../api';
 
 const AuthContext = createContext(null);
 
@@ -18,22 +18,35 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const token = localStorage.getItem('token');
     if (token) {
-      api.get('/auth/me')
+      api
+        .get('/auth/me')
         .then((data) => {
-          setUser(data.user);
-          localStorage.setItem('user', JSON.stringify(data.user));
+          if (!cancelled) {
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
+          }
         })
-        .catch(() => {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setUser(null);
+        .catch((err) => {
+          // Only drop the session when the server rejects the token — not on timeouts, 502s, or refresh aborts.
+          if (err instanceof UnauthorizedError) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            if (!cancelled) setUser(null);
+          }
+          // Transient errors: keep token + cached user from initial state so refresh does not "log out".
         })
-        .finally(() => setLoading(false));
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     } else {
       setLoading(false);
     }
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = async (username, password) => {
