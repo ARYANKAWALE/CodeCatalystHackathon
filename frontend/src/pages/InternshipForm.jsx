@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 
 const STATUSES = ['applied', 'selected', 'ongoing', 'completed', 'rejected'];
@@ -20,6 +20,7 @@ export default function InternshipForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [form, setForm] = useState(emptyForm);
   const [students, setStudents] = useState([]);
@@ -57,7 +58,10 @@ export default function InternshipForm() {
             progress_notes: inv.progress_notes ?? '',
           });
         } else {
-          setForm(emptyForm);
+          const sid = searchParams.get('student_id');
+          const preStudent =
+            sid && /^\d+$/.test(String(sid).trim()) ? String(sid).trim() : '';
+          setForm({ ...emptyForm, student_id: preStudent });
         }
       } catch (e) {
         if (!cancelled) setError(e.message || 'Failed to load form data');
@@ -68,7 +72,7 @@ export default function InternshipForm() {
     return () => {
       cancelled = true;
     };
-  }, [id, isEdit]);
+  }, [id, isEdit, searchParams]);
 
   const onChange = (e) => {
     const { name, value } = e.target;

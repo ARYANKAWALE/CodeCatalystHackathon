@@ -208,7 +208,17 @@ class Placement(db.Model):
     status = db.Column(db.String(30), nullable=False, default="applied")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    STATUSES = ["applied", "shortlisted", "selected", "placed", "rejected"]
+    STATUSES = [
+        "applied",
+        "shortlisted",
+        "interview_scheduled",
+        "selected",
+        "offer_received",
+        "accepted",
+        "placed",
+        "rejected",
+        "withdrawn",
+    ]
 
     def to_dict(self):
         return {

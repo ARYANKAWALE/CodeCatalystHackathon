@@ -528,6 +528,7 @@ def dashboard():
         "dept_stats": [[d, c] for d, c in dept_stats],
         "internship_status_counts": internship_status_counts,
         "placement_status_counts": placement_status_counts,
+        "placement_status_order": list(Placement.STATUSES),
         "recent_placements": recent_placements,
         "recent_internships": recent_internships,
         "pending_appeals": pending_appeals,
@@ -976,6 +977,9 @@ def placements_create():
     for f in ["student_id", "company_id", "role", "package_lpa"]:
         if not data.get(f):
             return jsonify({"error": f"{f} is required"}), 400
+    st = (data.get("status") or "applied").strip()
+    if st not in Placement.STATUSES:
+        return jsonify({"error": f"status must be one of: {', '.join(Placement.STATUSES)}"}), 400
     placement = Placement(
         student_id=int(data["student_id"]),
         company_id=int(data["company_id"]),
@@ -983,7 +987,7 @@ def placements_create():
         package_lpa=float(data["package_lpa"]),
         offer_date=parse_date(data.get("offer_date")),
         joining_date=parse_date(data.get("joining_date")),
-        status=data.get("status", "applied"),
+        status=st,
     )
     db.session.add(placement)
     try:
@@ -1027,7 +1031,10 @@ def placements_update(id):
         placement.joining_date = parse_date(data["joining_date"])
     old_status = placement.status
     if "status" in data:
-        placement.status = data["status"]
+        st = (data["status"] or "").strip()
+        if st not in Placement.STATUSES:
+            return jsonify({"error": f"status must be one of: {', '.join(Placement.STATUSES)}"}), 400
+        placement.status = st
     try:
         db.session.commit()
         if "status" in data and placement.status != old_status:
