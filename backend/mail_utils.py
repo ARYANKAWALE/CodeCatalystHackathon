@@ -28,6 +28,15 @@ def mail_ready(cfg: dict) -> bool:
     return bool(server and sender)
 
 
+def _smtp_connect_kwargs(cfg: dict) -> dict:
+    """Extra kwargs for smtplib (EHLO hostname fixes many cloud / container SMTP rejections)."""
+    kw = {"timeout": 45}
+    eh = (cfg.get("MAIL_EHLO_HOSTNAME") or "").strip()
+    if eh:
+        kw["local_hostname"] = eh
+    return kw
+
+
 def send_plain_email(cfg: dict, to_addr: str, subject: str, body: str) -> bool:
     to_addr = (to_addr or "").strip()
     if not _valid_recipient_addr(to_addr):
@@ -38,7 +47,12 @@ def send_plain_email(cfg: dict, to_addr: str, subject: str, body: str) -> bool:
         return False
     server_host = (cfg.get("MAIL_SERVER") or "").strip()
     sender = (cfg.get("MAIL_DEFAULT_SENDER") or cfg.get("MAIL_USERNAME") or "").strip()
-    if not server_host or not to_addr or not sender:
+    if not server_host or not sender:
+        logger.error(
+            "Email to %r not sent: missing MAIL_SERVER or sender "
+            "(set MAIL_DEFAULT_SENDER or MAIL_USERNAME).",
+            to_addr,
+        )
         return False
     if "@" in server_host:
         logger.error(
@@ -70,22 +84,23 @@ def send_plain_email(cfg: dict, to_addr: str, subject: str, body: str) -> bool:
         return False
 
     context = ssl.create_default_context()
+    conn_kw = _smtp_connect_kwargs(cfg)
 
     def _send_ssl():
-        with smtplib.SMTP_SSL(server_host, port, context=context, timeout=45) as smtp:
+        with smtplib.SMTP_SSL(server_host, port, context=context, **conn_kw) as smtp:
             if user:
                 smtp.login(user, password)
             smtp.send_message(msg)
 
     def _send_starttls():
-        with smtplib.SMTP(server_host, port, timeout=45) as smtp:
+        with smtplib.SMTP(server_host, port, **conn_kw) as smtp:
             smtp.starttls(context=context)
             if user:
                 smtp.login(user, password)
             smtp.send_message(msg)
 
     def _send_plain():
-        with smtplib.SMTP(server_host, port, timeout=45) as smtp:
+        with smtplib.SMTP(server_host, port, **conn_kw) as smtp:
             if user:
                 smtp.login(user, password)
             smtp.send_message(msg)
@@ -119,7 +134,7 @@ def send_plain_email(cfg: dict, to_addr: str, subject: str, body: str) -> bool:
                 first_err,
             )
             try:
-                with smtplib.SMTP_SSL(server_host, 465, context=context, timeout=45) as smtp:
+                with smtplib.SMTP_SSL(server_host, 465, context=context, **conn_kw) as smtp:
                     if user:
                         smtp.login(user, password)
                     smtp.send_message(msg)
@@ -141,6 +156,7 @@ def mail_config_snapshot(app) -> dict:
         "MAIL_USERNAME": app.config.get("MAIL_USERNAME", ""),
         "MAIL_PASSWORD": app.config.get("MAIL_PASSWORD", ""),
         "MAIL_DEFAULT_SENDER": app.config.get("MAIL_DEFAULT_SENDER", ""),
+        "MAIL_EHLO_HOSTNAME": app.config.get("MAIL_EHLO_HOSTNAME", ""),
     }
 
 
@@ -160,8 +176,17 @@ def schedule_plain_email(app, to_addr: str, subject: str, body: str) -> None:
 
     def run():
         try:
-            send_plain_email(cfg, to_addr, subject, body)
+            ok = send_plain_email(cfg, to_addr, subject, body)
+            if not ok:
+                logger.error(
+                    "Email was not delivered to %s (subject=%r). "
+                    "Check SMTP env vars, provider logs, and spam folder. "
+                    "Run: python test_smtp.py %s",
+                    to_addr,
+                    subject[:80],
+                    to_addr,
+                )
         except Exception:
             logger.exception("Background email failed for %s", to_addr)
 
-    threading.Thread(target=run, daemon=True).start()
+    threading.Thread(target=run, daemon=True, name="placetrack-smtp").start()

@@ -77,6 +77,9 @@ class Config:
     _raw_pw = _env_strip("MAIL_PASSWORD")
     MAIL_PASSWORD = "".join(_raw_pw.split()) if _raw_pw else ""
     MAIL_DEFAULT_SENDER = _env_strip("MAIL_DEFAULT_SENDER") or MAIL_USERNAME
+    # HELO/EHLO hostname sent to SMTP (defaults to machine FQDN). Set on cloud hosts if mail is rejected
+    # (e.g. smtp.office365.com / Gmail often dislike "localhost").
+    MAIL_EHLO_HOSTNAME = _env_strip("MAIL_EHLO_HOSTNAME")
 
     # Base URL of the React app (no trailing slash). Used in password-reset emails.
     FRONTEND_URL = _env_strip("FRONTEND_URL", "http://localhost:5173")

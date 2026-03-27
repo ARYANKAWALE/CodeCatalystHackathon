@@ -14,8 +14,20 @@ from sqlalchemy import false as sql_false, func, inspect as sa_inspect, text
 from sqlalchemy.orm import joinedload
 
 from config import Config
-from mail_utils import schedule_plain_email
+from mail_utils import mail_config_snapshot, mail_ready, schedule_plain_email
 from models import db, User, Student, Company, Internship, Placement, Appeal
+from notification_templates import (
+    appeal_accepted,
+    appeal_received,
+    appeal_rejected,
+    internship_added_to_profile,
+    internship_status_changed,
+    password_reset,
+    placement_added_to_profile,
+    placement_status_changed,
+    sign_in_notice,
+    welcome_register,
+)
 from phone_utils import normalize_india_phone
 
 STATIC_FOLDER = os.path.join(os.path.dirname(__file__), "static_frontend")
@@ -27,6 +39,13 @@ CORS(app, resources={r"/api/*": {"origins": "*"}}, methods=["GET", "POST", "PUT"
 db.init_app(app)
 
 logging.getLogger("mail_utils").setLevel(logging.INFO)
+
+_mail_cfg = mail_config_snapshot(app)
+if not mail_ready(_mail_cfg):
+    logging.getLogger(__name__).warning(
+        "SMTP is not fully configured (set MAIL_SERVER and MAIL_USERNAME or MAIL_DEFAULT_SENDER). "
+        "Password reset, welcome, and notification emails will be skipped until SMTP env vars are set."
+    )
 
 # ── JWT helpers ────────────────────────────────────────────────────────────────
 
@@ -149,6 +168,17 @@ def user_account_email_for_reset(user):
     return (user.email or "").strip() or None
 
 
+def notify_student_by_email(app, student, subject, body, log_label: str):
+    """Send mail to the student's profile or linked account email; log if no address."""
+    if student is None:
+        return
+    to_addr = student_notification_email(student)
+    if to_addr:
+        schedule_plain_email(app, to_addr, subject, body)
+    else:
+        logging.getLogger(__name__).warning("%s: no email for student id=%s", log_label, student.id)
+
+
 def hash_password_reset_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
@@ -240,19 +270,8 @@ def register():
     else:
         greet = "Hello,\n\n"
     role_label = "student" if role_lc == "student" else "administrator"
-    schedule_plain_email(
-        app,
-        user.email.strip(),
-        "PlaceTrack — Welcome, your account was created",
-        (
-            f"{greet}"
-            f"Your PlaceTrack account is ready.\n"
-            f"Username: {username}\n"
-            f"Role: {role_label}\n\n"
-            "You can sign in anytime using your username and password.\n\n"
-            "— PlaceTrack"
-        ),
-    )
+    subj, welcome_body = welcome_register(greet_line=greet, username=username, role_label=role_label)
+    schedule_plain_email(app, user.email.strip(), subj, welcome_body)
     return jsonify({"token": token, "user": user.to_dict()}), 201
 
 
@@ -274,16 +293,8 @@ def login():
         to_addr = student_primary_email(user) or (user.email or "").strip() or None
         if to_addr:
             when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-            schedule_plain_email(
-                app,
-                to_addr,
-                "PlaceTrack — You signed in",
-                (
-                    f"Hello,\n\nYour PlaceTrack account ({user.username}) was used to sign in at {when}.\n\n"
-                    "If this was not you, secure your account by changing your password.\n\n"
-                    "— PlaceTrack"
-                ),
-            )
+            si_subj, si_body = sign_in_notice(username=user.username, when_utc=when)
+            schedule_plain_email(app, to_addr, si_subj, si_body)
     return jsonify({"token": token, "user": user.to_dict()})
 
 
@@ -316,18 +327,8 @@ def auth_forgot_password():
         link = f"{base}/reset-password?token={raw}"
         to_addr = user_account_email_for_reset(user)
         if to_addr:
-            schedule_plain_email(
-                app,
-                to_addr,
-                "PlaceTrack — Reset your password",
-                (
-                    f"Hello,\n\n"
-                    f"We received a request to reset the password for PlaceTrack account {user.username}.\n\n"
-                    f"Open this link to choose a new password (expires in {mins} minutes):\n{link}\n\n"
-                    "If you did not request this, you can ignore this email.\n\n"
-                    "— PlaceTrack"
-                ),
-            )
+            pr_subj, pr_body = password_reset(username=user.username, link=link, minutes=mins)
+            schedule_plain_email(app, to_addr, pr_subj, pr_body)
 
     return jsonify({"message": FORGOT_PASSWORD_MESSAGE})
 
@@ -864,6 +865,9 @@ def internships_create():
     for f in ["student_id", "company_id", "title"]:
         if not data.get(f):
             return jsonify({"error": f"{f} is required"}), 400
+    st_in = (data.get("status") or "applied").strip()
+    if st_in not in Internship.STATUSES:
+        return jsonify({"error": f"status must be one of: {', '.join(Internship.STATUSES)}"}), 400
     internship = Internship(
         student_id=int(data["student_id"]),
         company_id=int(data["company_id"]),
@@ -872,12 +876,19 @@ def internships_create():
         start_date=parse_date(data.get("start_date")),
         end_date=parse_date(data.get("end_date")),
         stipend=float(data["stipend"]) if data.get("stipend") else 0,
-        status=data.get("status", "applied"),
+        status=st_in,
         progress_notes=data.get("progress_notes", "").strip(),
     )
     db.session.add(internship)
     try:
         db.session.commit()
+        stu = internship.student
+        if stu:
+            cname = internship.company.name if internship.company else "the company"
+            ia_subj, ia_body = internship_added_to_profile(
+                student_name=stu.name, title=internship.title, company=cname
+            )
+            notify_student_by_email(app, stu, ia_subj, ia_body, "Internship create email")
         return jsonify(internship.to_dict()), 201
     except Exception as e:
         db.session.rollback()
@@ -916,10 +927,26 @@ def internships_update(id):
         internship.end_date = parse_date(data["end_date"])
     if "stipend" in data:
         internship.stipend = float(data["stipend"]) if data["stipend"] else 0
+    old_status = internship.status
     if "status" in data:
-        internship.status = data["status"]
+        st = (data["status"] or "").strip()
+        if st not in Internship.STATUSES:
+            return jsonify({"error": f"status must be one of: {', '.join(Internship.STATUSES)}"}), 400
+        internship.status = st
     try:
         db.session.commit()
+        if "status" in data and internship.status != old_status:
+            stu = internship.student
+            if stu:
+                cname = internship.company.name if internship.company else "the company"
+                is_subj, is_body = internship_status_changed(
+                    student_name=stu.name,
+                    title=internship.title,
+                    company=cname,
+                    old_status=old_status,
+                    new_status=internship.status,
+                )
+                notify_student_by_email(app, stu, is_subj, is_body, "Internship status email")
         return jsonify(internship.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -992,6 +1019,16 @@ def placements_create():
     db.session.add(placement)
     try:
         db.session.commit()
+        stu = placement.student
+        if stu:
+            cname = placement.company.name if placement.company else "the company"
+            pa_subj, pa_body = placement_added_to_profile(
+                student_name=stu.name,
+                role=placement.role,
+                company=cname,
+                package_lpa=placement.package_lpa,
+            )
+            notify_student_by_email(app, stu, pa_subj, pa_body, "Placement create email")
         return jsonify(placement.to_dict()), 201
     except Exception as e:
         db.session.rollback()
@@ -1039,25 +1076,18 @@ def placements_update(id):
         db.session.commit()
         if "status" in data and placement.status != old_status:
             stu = placement.student
-            to_addr = student_notification_email(stu)
-            if to_addr and stu:
+            if stu:
                 cname = placement.company.name if placement.company else "the company"
-                schedule_plain_email(
-                    app,
-                    to_addr,
-                    "PlaceTrack — Placement status update",
-                    (
-                        f"Hello {stu.name},\n\n"
-                        f"Your placement ({placement.role}) at {cname} was updated.\n"
-                        f"Status: {old_status} → {placement.status}\n\n"
-                        "— PlaceTrack"
-                    ),
+                ps_subj, ps_body = placement_status_changed(
+                    student_name=stu.name,
+                    role=placement.role,
+                    company=cname,
+                    old_status=old_status,
+                    new_status=placement.status,
+                    package_lpa=placement.package_lpa,
                 )
-            elif stu and not to_addr:
-                logging.getLogger(__name__).warning(
-                    "Placement %s status email skipped: no email for student id=%s",
-                    placement.id,
-                    stu.id,
+                notify_student_by_email(
+                    app, stu, ps_subj, ps_body, f"Placement {placement.id} status email"
                 )
         return jsonify(placement.to_dict())
     except Exception as e:
@@ -1124,23 +1154,18 @@ def appeals_create():
         db.session.commit()
         student = db.session.get(Student, vsid)
         company = db.session.get(Company, cid)
-        to_appeal = student_notification_email(student)
-        if student and to_appeal:
+        if student:
             kind = "internship" if appeal_type == "internship" else "placement"
             cname = company.name if company else "the company"
-            schedule_plain_email(
-                app,
-                to_appeal,
-                f"PlaceTrack — {kind.title()} request received",
-                (
-                    f"Hello {student.name},\n\n"
-                    f"We received your {kind} request for {cname}.\n"
-                    f"Title: {title}\n"
-                    f"Request ID: {appeal.id}\n"
-                    "Status: pending admin review.\n\n"
-                    "You will be notified when the admin updates your request.\n\n"
-                    "— PlaceTrack"
-                ),
+            ar_subj, ar_body = appeal_received(
+                student_name=student.name,
+                kind=kind,
+                company=cname,
+                title=title,
+                appeal_id=appeal.id,
+            )
+            notify_student_by_email(
+                app, student, ar_subj, ar_body, "Appeal submitted confirmation"
             )
         return jsonify(appeal.to_dict()), 201
     except Exception as e:
@@ -1238,21 +1263,16 @@ def appeals_accept(id):
         appeal.reviewer_user_id = g.current_user.id
         db.session.commit()
         stu = appeal.student
-        to_acc = student_notification_email(stu)
-        if stu and to_acc:
+        if stu:
             kind = appeal.appeal_type
             cname = appeal.company.name if appeal.company else "the company"
-            schedule_plain_email(
-                app,
-                to_acc,
-                f"PlaceTrack — {kind.title()} request accepted",
-                (
-                    f"Hello {stu.name},\n\n"
-                    f"Your {kind} request for {cname} ({appeal.title}) has been accepted.\n"
-                    f"A corresponding record was added to your {kind}s.\n\n"
-                    "— PlaceTrack"
-                ),
+            aa_subj, aa_body = appeal_accepted(
+                student_name=stu.name,
+                kind=kind,
+                company=cname,
+                title=appeal.title,
             )
+            notify_student_by_email(app, stu, aa_subj, aa_body, "Appeal accepted email")
         return jsonify(appeal.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -1276,21 +1296,17 @@ def appeals_reject(id):
     try:
         db.session.commit()
         stu = appeal.student
-        to_rej = student_notification_email(stu)
-        if stu and to_rej:
+        if stu:
             kind = appeal.appeal_type
             cname = appeal.company.name if appeal.company else "the company"
-            note_line = f"\nNote from admin: {note}\n" if note else ""
-            schedule_plain_email(
-                app,
-                to_rej,
-                f"PlaceTrack — {kind.title()} request update",
-                (
-                    f"Hello {stu.name},\n\n"
-                    f"Your {kind} request for {cname} ({appeal.title}) was not approved.{note_line}\n"
-                    "— PlaceTrack"
-                ),
+            rj_subj, rj_body = appeal_rejected(
+                student_name=stu.name,
+                kind=kind,
+                company=cname,
+                title=appeal.title,
+                admin_note=note,
             )
+            notify_student_by_email(app, stu, rj_subj, rj_body, "Appeal rejected email")
         return jsonify(appeal.to_dict())
     except Exception as e:
         db.session.rollback()

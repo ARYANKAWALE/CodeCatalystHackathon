@@ -106,7 +106,7 @@ $env:DATABASE_URL = "postgresql://user:password@localhost:5432/placetrack"
 The repo includes [`render.yaml`](render.yaml) for a **web service** (`gunicorn app:app`) plus a **PostgreSQL** database. After linking the repo:
 
 1. Set `FRONTEND_URL` in the Render dashboard to your deployed frontend base URL (no trailing slash) if you use password reset mail.
-2. Configure optional SMTP env vars (`MAIL_SERVER`, `MAIL_USERNAME`, etc.) for email.
+2. Configure optional SMTP env vars (`MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_DEFAULT_SENDER`) for email. On many hosts the machine’s hostname is `localhost`, which SMTP providers may reject—set **`MAIL_EHLO_HOSTNAME`** to a real domain you control (e.g. `mail.yourcollege.edu`).
 3. `render.yaml` includes a placeholder `CORS_ORIGINS` key for documentation; the API currently allows all origins on `/api/*` via Flask-CORS. Tighten this in `app.py` if you need origin allowlists in production.
 
 On startup, the API runs lightweight schema checks (for example, password-reset columns on `users`) using dialect-appropriate SQL for PostgreSQL vs MySQL/SQLite.
