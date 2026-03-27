@@ -60,8 +60,8 @@ function AppLayout() {
           <Route path="/dashboard" element={<P><Dashboard /></P>} />
           <Route path="/account/password" element={<P><ChangePassword /></P>} />
           <Route path="/students" element={<P><StudentList /></P>} />
-          <Route path="/students/add" element={<P><StudentForm /></P>} />
-          <Route path="/students/:id/edit" element={<P><StudentForm /></P>} />
+          <Route path="/students/add" element={<P><AdminRoute><StudentForm /></AdminRoute></P>} />
+          <Route path="/students/:id/edit" element={<P><AdminRoute><StudentForm /></AdminRoute></P>} />
           <Route path="/students/:id" element={<P><StudentView /></P>} />
           <Route path="/companies" element={<P><CompanyList /></P>} />
           <Route path="/companies/add" element={<P><AdminRoute><CompanyForm /></AdminRoute></P>} />

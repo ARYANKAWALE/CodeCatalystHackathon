@@ -38,12 +38,13 @@ export default function Navbar({ children }) {
   /** Student-only UI; admins never use "My …" nav even if student_id is set */
   const isStudent = role === 'student' && !isAdmin;
 
+  const profilePath =
+    isStudent && user.student_id != null ? `/students/${user.student_id}` : '/dashboard';
+
   const navItems = [
     { to: '/dashboard', icon: 'bi-grid-1x2-fill', label: 'Dashboard' },
     ...(isAdmin ? [{ to: '/students', icon: 'bi-people-fill', label: 'Students' }] : []),
-    ...(isStudent && user.student_id != null
-      ? [{ to: `/students/${user.student_id}`, icon: 'bi-person-badge', label: 'My profile' }]
-      : []),
+    ...(isStudent ? [{ to: profilePath, icon: 'bi-person-badge', label: 'My profile' }] : []),
     { to: '/companies', icon: 'bi-building', label: 'Companies' },
     {
       to: '/internships',

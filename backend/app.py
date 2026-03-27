@@ -58,6 +58,7 @@ def token_required(f):
             g.current_user = db.session.get(User, uid)
             if not g.current_user:
                 return jsonify({"error": "User not found"}), 401
+            ensure_user_student_link(g.current_user)
         except jwt.ExpiredSignatureError:
             return jsonify({"error": "Token expired"}), 401
         except jwt.InvalidTokenError:
@@ -82,6 +83,26 @@ def current_user_role():
     if r is None:
         return ""
     return str(r).strip().lower()
+
+
+def ensure_user_student_link(user):
+    """If role is student but student_id is unset, link User to Student by matching email (case-insensitive)."""
+    if user is None:
+        return
+    r = (getattr(user, "role", None) or "").strip().lower()
+    if r != "student" or user.student_id:
+        return
+    email = (user.email or "").strip().lower()
+    if not email:
+        return
+    stu = Student.query.filter(db.func.lower(Student.email) == email).first()
+    if not stu:
+        return
+    user.student_id = stu.id
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 def student_data_scope():
@@ -239,6 +260,7 @@ def login():
         user = User.query.filter_by(email=username).first()
     if not user or not user.check_password(password):
         return jsonify({"error": "Invalid username or password"}), 401
+    ensure_user_student_link(user)
     token = create_token(user)
     if app.config.get("MAIL_SIGN_IN_EMAIL"):
         to_addr = student_primary_email(user) or (user.email or "").strip() or None
@@ -375,7 +397,15 @@ def _counts_grouped(model, statuses_tuple):
 @app.route("/api/dashboard")
 @token_required
 def dashboard():
-    if current_user_role() == "student" and g.current_user.student_id:
+    if current_user_role() == "student":
+        if not g.current_user.student_id:
+            return jsonify({
+                "type": "student_unlinked",
+                "message": (
+                    "Your login is not linked to a student profile. "
+                    "Use the same email on your account as on your student record, or ask an administrator to link your user to a student row."
+                ),
+            })
         sid = g.current_user.student_id
         student = (
             Student.query.options(
@@ -404,6 +434,9 @@ def dashboard():
             "student": student.to_dict(include_relations=True),
             "appeal_counts": appeal_counts,
         })
+
+    if current_user_role() != "admin":
+        return jsonify({"error": "You do not have access to this dashboard."}), 403
 
     # One round-trip for common totals (important on remote Postgres e.g. Render).
     totals = db.session.execute(

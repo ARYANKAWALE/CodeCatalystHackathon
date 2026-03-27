@@ -180,6 +180,23 @@ export default function Dashboard() {
     return null;
   }
 
+  if (data.type === 'student_unlinked') {
+    return (
+      <div>
+        <div className="page-header">
+          <div>
+            <h1>My dashboard</h1>
+            <p className="subtitle">Signed in as {user?.username}</p>
+          </div>
+        </div>
+        <div className="alert alert-warning border-0 shadow-sm" role="alert">
+          <strong>Profile not linked.</strong>{' '}
+          {data.message || 'Ask an administrator to link your account to your student record.'}
+        </div>
+      </div>
+    );
+  }
+
   if (data.type === 'student' && data.student) {
     const s = data.student;
     const internships = s.internships || [];
