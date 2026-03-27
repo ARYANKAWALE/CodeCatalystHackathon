@@ -397,10 +397,13 @@ def _counts_grouped(model, statuses_tuple):
 @app.route("/api/dashboard")
 @token_required
 def dashboard():
-    if current_user_role() == "student":
+    r = current_user_role()
+    # Admins always get the system dashboard (even if student_id is set). Never show admin charts to real students.
+    if r != "admin" and (r == "student" or g.current_user.student_id):
         if not g.current_user.student_id:
             return jsonify({
                 "type": "student_unlinked",
+                "viewer_role": "student",
                 "message": (
                     "Your login is not linked to a student profile. "
                     "Use the same email on your account as on your student record, or ask an administrator to link your user to a student row."
@@ -431,13 +434,15 @@ def dashboard():
                 appeal_counts[st] = int(n)
         return jsonify({
             "type": "student",
+            "viewer_role": "student",
             "student": student.to_dict(include_relations=True),
             "appeal_counts": appeal_counts,
         })
 
-    if current_user_role() != "admin":
+    if r != "admin":
         return jsonify({"error": "You do not have access to this dashboard."}), 403
 
+    # ── Admin dashboard ───────────────────────────────────────────────────────
     # One round-trip for common totals (important on remote Postgres e.g. Render).
     totals = db.session.execute(
         text(
@@ -509,6 +514,7 @@ def dashboard():
 
     return jsonify({
         "type": "admin",
+        "viewer_role": "admin",
         "total_students": total_students,
         "total_companies": total_companies,
         "total_internships": total_internships,

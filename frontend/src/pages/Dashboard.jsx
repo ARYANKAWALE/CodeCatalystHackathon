@@ -132,7 +132,7 @@ function StudentResumeSection({ resumeLink, onSaved }) {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, refreshSession } = useAuth();
   const location = useLocation();
   const { dark } = useTheme();
   const { barOptions, doughnutOptions } = useMemo(() => buildChartOptions(dark), [dark]);
@@ -149,6 +149,15 @@ export default function Dashboard() {
         if (!cancelled) {
           setData(res);
           setError('');
+          const vr = res.viewer_role;
+          const ur = String(user?.role ?? '').toLowerCase();
+          if (vr && ur && vr !== ur) {
+            try {
+              await refreshSession();
+            } catch {
+              /* ignore */
+            }
+          }
         }
       } catch (e) {
         if (!cancelled) {

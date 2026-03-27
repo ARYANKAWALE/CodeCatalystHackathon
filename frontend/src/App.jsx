@@ -31,6 +31,7 @@ import CompanyWiseReport from './pages/CompanyWiseReport';
 import AppealList from './pages/AppealList';
 import AppealForm from './pages/AppealForm';
 import MyReports from './pages/MyReports';
+import MyProfile from './pages/MyProfile';
 
 function P({ children }) {
   return <ProtectedRoute>{children}</ProtectedRoute>;
@@ -58,6 +59,7 @@ function AppLayout() {
       <div className="container-fluid px-4">
         <Routes>
           <Route path="/dashboard" element={<P><Dashboard /></P>} />
+          <Route path="/my-profile" element={<P><MyProfile /></P>} />
           <Route path="/account/password" element={<P><ChangePassword /></P>} />
           <Route path="/students" element={<P><StudentList /></P>} />
           <Route path="/students/add" element={<P><AdminRoute><StudentForm /></AdminRoute></P>} />

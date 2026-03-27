@@ -71,8 +71,17 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  /** Re-sync role/student_id from server (fixes stale localStorage vs database). */
+  const refreshSession = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const data = await api.get('/auth/me');
+    setUser(data.user);
+    localStorage.setItem('user', JSON.stringify(data.user));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshSession }}>
       {children}
     </AuthContext.Provider>
   );

@@ -39,10 +39,10 @@ export default function Navbar({ children }) {
   const isStudent = role === 'student' && !isAdmin;
 
   const profilePath =
-    isStudent && user.student_id != null ? `/students/${user.student_id}` : '/dashboard';
+    isStudent && user.student_id != null ? `/students/${user.student_id}` : '/my-profile';
 
   const navItems = [
-    { to: '/dashboard', icon: 'bi-grid-1x2-fill', label: 'Dashboard' },
+    { to: '/dashboard', icon: 'bi-grid-1x2-fill', label: 'Dashboard', end: true },
     ...(isAdmin ? [{ to: '/students', icon: 'bi-people-fill', label: 'Students' }] : []),
     ...(isStudent ? [{ to: profilePath, icon: 'bi-person-badge', label: 'My profile' }] : []),
     { to: '/companies', icon: 'bi-building', label: 'Companies' },
@@ -104,9 +104,9 @@ export default function Navbar({ children }) {
 
         <nav className="sidebar-nav">
           <ul className="sidebar-nav-list">
-            {navItems.map(({ to, icon, label }) => (
+            {navItems.map(({ to, icon, label, end }) => (
               <li key={`${to}-${label}`}>
-                <NavLink className="sidebar-nav-link" to={to} onClick={closeMenu}>
+                <NavLink className="sidebar-nav-link" to={to} end={Boolean(end)} onClick={closeMenu}>
                   <i className={`bi ${icon}`} />
                   <span>{label}</span>
                 </NavLink>
