@@ -3,8 +3,14 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# backend/.env — not committed; copy from .env.example
-load_dotenv(Path(__file__).resolve().parent / ".env", encoding="utf-8-sig")
+_BACKEND_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _BACKEND_DIR.parent
+
+# Project root .env first, then backend/.env (backend wins on duplicate keys).
+if (_REPO_ROOT / ".env").is_file():
+    load_dotenv(_REPO_ROOT / ".env", encoding="utf-8-sig")
+if (_BACKEND_DIR / ".env").is_file():
+    load_dotenv(_BACKEND_DIR / ".env", encoding="utf-8-sig", override=True)
 
 
 def _env_strip(key: str, default: str = "") -> str:
@@ -14,19 +20,43 @@ def _env_strip(key: str, default: str = "") -> str:
     return v
 
 
+def _database_url_from_env() -> str:
+    raw = (os.environ.get("DATABASE_URL") or "").strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in ("'", '"'):
+        raw = raw[1:-1].strip()
+    return raw
+
+
+_db_from_env = _database_url_from_env()
+if _db_from_env:
+    _resolved_db_url = _db_from_env
+else:
+    _instance_dir = _BACKEND_DIR / "instance"
+    _instance_dir.mkdir(exist_ok=True)
+    _sqlite_path = _instance_dir / "placetrack.db"
+    _resolved_db_url = f"sqlite:///{_sqlite_path.resolve().as_posix()}"
+    print(
+        "PlaceTrack: DATABASE_URL is not set - using local SQLite at",
+        _sqlite_path.resolve(),
+        "\n  Set DATABASE_URL in backend/.env (or Codecatalyst/.env) for MySQL/Postgres (e.g. Render External URL).",
+    )
+
+if _resolved_db_url.startswith("postgres://"):
+    _resolved_db_url = _resolved_db_url.replace("postgres://", "postgresql://", 1)
+
+
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "placetrack-jwt-secret-2026")
 
-    db_url = os.environ.get("DATABASE_URL", "mysql+pymysql://root:@localhost/placetrack")
-    if db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql://", 1)
-    SQLALCHEMY_DATABASE_URI = db_url
+    SQLALCHEMY_DATABASE_URI = _resolved_db_url
 
     # Avoid hanging forever when MySQL/Postgres is down (first query blocks on connect).
     _db_connect_timeout = int(_env_strip("DB_CONNECT_TIMEOUT", "12") or "12")
     _engine_opts = {"pool_pre_ping": True, "pool_recycle": 280}
-    _db_lower = db_url.lower()
-    if "sqlite" not in _db_lower:
+    _db_lower = _resolved_db_url.lower()
+    if "sqlite" in _db_lower:
+        _engine_opts["connect_args"] = {"check_same_thread": False}
+    else:
         if "pymysql" in _db_lower or "mysql" in _db_lower:
             _engine_opts["connect_args"] = {"connect_timeout": _db_connect_timeout}
         elif "postgresql" in _db_lower:

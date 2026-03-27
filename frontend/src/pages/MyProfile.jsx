@@ -25,9 +25,22 @@ export default function MyProfile() {
         <p className="subtitle">Signed in as {user?.username}</p>
       </div>
       <div className="alert alert-warning border-0 shadow-sm" role="alert">
-        Your account is not linked to a student record. Ask an administrator to set your{' '}
-        <strong>student_id</strong> or use the same email as your student profile so linking can run
-        automatically.
+        <p className="mb-2">
+          Your account is not linked to a student record. Linking runs when your{' '}
+          <strong>account email</strong> matches <code>students.email</code>, or your <strong>username</strong> matches{' '}
+          <code>students.roll_number</code> (case-insensitive). Otherwise an admin must set{' '}
+          <code>users.student_id</code>.
+        </p>
+        {user?.email ? (
+          <p className="small mb-1">
+            Account email: <code className="user-select-all">{user.email}</code>
+          </p>
+        ) : null}
+        {user?.username ? (
+          <p className="small mb-0">
+            Username: <code className="user-select-all">{user.username}</code>
+          </p>
+        ) : null}
       </div>
     </div>
   );

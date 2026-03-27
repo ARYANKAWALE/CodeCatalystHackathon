@@ -59,6 +59,8 @@ def token_required(f):
             if not g.current_user:
                 return jsonify({"error": "User not found"}), 401
             ensure_user_student_link(g.current_user)
+            if current_user_role() == "student" and not g.current_user.student_id:
+                return jsonify({"error": "Invalid username or password"}), 401
         except jwt.ExpiredSignatureError:
             return jsonify({"error": "Token expired"}), 401
         except jwt.InvalidTokenError:
@@ -86,16 +88,20 @@ def current_user_role():
 
 
 def ensure_user_student_link(user):
-    """If role is student but student_id is unset, link User to Student by matching email (case-insensitive)."""
+    """If role is student but student_id is unset, link User to Student by email or username=roll_number."""
     if user is None:
         return
     r = (getattr(user, "role", None) or "").strip().lower()
     if r != "student" or user.student_id:
         return
+    stu = None
     email = (user.email or "").strip().lower()
-    if not email:
-        return
-    stu = Student.query.filter(db.func.lower(Student.email) == email).first()
+    if email:
+        stu = Student.query.filter(db.func.lower(Student.email) == email).first()
+    if not stu:
+        uname = (user.username or "").strip().lower()
+        if uname:
+            stu = Student.query.filter(db.func.lower(Student.roll_number) == uname).first()
     if not stu:
         return
     user.student_id = stu.id
@@ -261,6 +267,8 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({"error": "Invalid username or password"}), 401
     ensure_user_student_link(user)
+    if (getattr(user, "role", None) or "").strip().lower() == "student" and not user.student_id:
+        return jsonify({"error": "Invalid username or password"}), 401
     token = create_token(user)
     if app.config.get("MAIL_SIGN_IN_EMAIL"):
         to_addr = student_primary_email(user) or (user.email or "").strip() or None
@@ -401,14 +409,7 @@ def dashboard():
     # Admins always get the system dashboard (even if student_id is set). Never show admin charts to real students.
     if r != "admin" and (r == "student" or g.current_user.student_id):
         if not g.current_user.student_id:
-            return jsonify({
-                "type": "student_unlinked",
-                "viewer_role": "student",
-                "message": (
-                    "Your login is not linked to a student profile. "
-                    "Use the same email on your account as on your student record, or ask an administrator to link your user to a student row."
-                ),
-            })
+            return jsonify({"error": "Student profile is not linked to this account."}), 403
         sid = g.current_user.student_id
         student = (
             Student.query.options(
