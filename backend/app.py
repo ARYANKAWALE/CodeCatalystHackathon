@@ -15,7 +15,7 @@ from sqlalchemy.orm import joinedload
 
 from config import Config
 from mail_utils import mail_config_snapshot, mail_ready, schedule_plain_email
-from models import db, User, Student, Company, Internship, Placement, Appeal
+from models import db, User, Student, Company, Internship, Placement, Appeal, Notification
 from notification_templates import (
     appeal_accepted,
     appeal_received,
@@ -45,6 +45,15 @@ if not mail_ready(_mail_cfg):
     logging.getLogger(__name__).warning(
         "SMTP is not fully configured (set MAIL_SERVER and MAIL_USERNAME or MAIL_DEFAULT_SENDER). "
         "Password reset, welcome, and notification emails will be skipped until SMTP env vars are set."
+    )
+
+_frontend = (app.config.get("FRONTEND_URL") or "").strip().lower()
+if os.environ.get("RENDER", "").lower() in ("true", "1") and (
+    not _frontend or "localhost" in _frontend or "127.0.0.1" in _frontend
+):
+    logging.getLogger(__name__).warning(
+        "FRONTEND_URL still targets localhost on Render. Set FRONTEND_URL in the service environment "
+        "to your deployed frontend origin (no trailing slash) so password-reset email links work."
     )
 
 # ── JWT helpers ────────────────────────────────────────────────────────────────
@@ -177,6 +186,45 @@ def notify_student_by_email(app, student, subject, body, log_label: str):
         schedule_plain_email(app, to_addr, subject, body)
     else:
         logging.getLogger(__name__).warning("%s: no email for student id=%s", log_label, student.id)
+
+
+def _user_id_for_student(student_id):
+    if not student_id:
+        return None
+    u = User.query.filter_by(student_id=student_id).first()
+    return u.id if u else None
+
+
+def _admin_user_ids():
+    return [
+        r[0]
+        for r in db.session.query(User.id).filter(func.lower(User.role) == "admin").all()
+    ]
+
+
+def _add_notification(user_id, kind, title, body=None, link=None):
+    if not user_id:
+        return
+    kt = (kind or "general")[:40]
+    tl = (title or "")[:200]
+    lk = link[:500] if link else None
+    n = Notification(
+        user_id=user_id,
+        kind=kt,
+        title=tl,
+        body=(body or "") or "",
+        link=lk,
+    )
+    db.session.add(n)
+
+
+def _notify_student_in_app(student_id, kind, title, body=None, link=None):
+    _add_notification(_user_id_for_student(student_id), kind, title, body, link)
+
+
+def _notify_all_admins(kind, title, body=None, link=None):
+    for uid in _admin_user_ids():
+        _add_notification(uid, kind, title, body, link)
 
 
 def hash_password_reset_token(raw_token: str) -> str:
@@ -881,10 +929,19 @@ def internships_create():
     )
     db.session.add(internship)
     try:
-        db.session.commit()
+        db.session.flush()
         stu = internship.student
+        cname = internship.company.name if internship.company else "the company"
         if stu:
-            cname = internship.company.name if internship.company else "the company"
+            _notify_student_in_app(
+                stu.id,
+                "internship_created",
+                "New internship recorded",
+                f"{internship.title} at {cname}.",
+                f"/internships/{internship.id}",
+            )
+        db.session.commit()
+        if stu:
             ia_subj, ia_body = internship_added_to_profile(
                 student_name=stu.name, title=internship.title, company=cname
             )
@@ -947,6 +1004,14 @@ def internships_update(id):
                     new_status=internship.status,
                 )
                 notify_student_by_email(app, stu, is_subj, is_body, "Internship status email")
+                _notify_student_in_app(
+                    stu.id,
+                    "internship_status",
+                    "Internship status updated",
+                    f'"{internship.title}" at {cname}: {old_status} → {internship.status}.',
+                    f"/internships/{internship.id}",
+                )
+                db.session.commit()
         return jsonify(internship.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -1018,10 +1083,19 @@ def placements_create():
     )
     db.session.add(placement)
     try:
-        db.session.commit()
+        db.session.flush()
         stu = placement.student
+        cname = placement.company.name if placement.company else "the company"
         if stu:
-            cname = placement.company.name if placement.company else "the company"
+            _notify_student_in_app(
+                stu.id,
+                "placement_created",
+                "New placement record",
+                f"{placement.role} at {cname} ({placement.package_lpa} LPA).",
+                f"/placements/{placement.id}",
+            )
+        db.session.commit()
+        if stu:
             pa_subj, pa_body = placement_added_to_profile(
                 student_name=stu.name,
                 role=placement.role,
@@ -1089,6 +1163,14 @@ def placements_update(id):
                 notify_student_by_email(
                     app, stu, ps_subj, ps_body, f"Placement {placement.id} status email"
                 )
+                _notify_student_in_app(
+                    stu.id,
+                    "placement_status",
+                    "Placement status updated",
+                    f'"{placement.role}" at {cname}: {old_status} → {placement.status}.',
+                    f"/placements/{placement.id}",
+                )
+                db.session.commit()
         return jsonify(placement.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -1151,9 +1233,17 @@ def appeals_create():
     )
     db.session.add(appeal)
     try:
-        db.session.commit()
+        db.session.flush()
         student = db.session.get(Student, vsid)
         company = db.session.get(Company, cid)
+        if student and company:
+            _notify_all_admins(
+                "appeal_submitted",
+                "New student appeal",
+                f'{student.name} — {title} ({appeal_type}) at {company.name}.',
+                "/appeals",
+            )
+        db.session.commit()
         if student:
             kind = "internship" if appeal_type == "internship" else "placement"
             cname = company.name if company else "the company"
@@ -1273,6 +1363,14 @@ def appeals_accept(id):
                 title=appeal.title,
             )
             notify_student_by_email(app, stu, aa_subj, aa_body, "Appeal accepted email")
+            _notify_student_in_app(
+                stu.id,
+                "appeal_accepted",
+                "Appeal accepted",
+                f'Your {kind} request "{appeal.title}" at {cname} was approved.',
+                f"/appeals",
+            )
+            db.session.commit()
         return jsonify(appeal.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -1307,10 +1405,101 @@ def appeals_reject(id):
                 admin_note=note,
             )
             notify_student_by_email(app, stu, rj_subj, rj_body, "Appeal rejected email")
+            _notify_student_in_app(
+                stu.id,
+                "appeal_rejected",
+                "Appeal update",
+                f'Your {kind} request "{appeal.title}" at {cname} was not approved.',
+                "/appeals",
+            )
+            db.session.commit()
         return jsonify(appeal.to_dict())
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NOTIFICATIONS (in-app)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@app.route("/api/notifications")
+@token_required
+def notifications_list():
+    limit = min(max(request.args.get("limit", 40, type=int), 1), 100)
+    unread_only = (request.args.get("unread_only") or "").lower() in ("1", "true", "yes")
+    q = Notification.query.filter_by(user_id=g.current_user.id)
+    if unread_only:
+        q = q.filter(Notification.read_at.is_(None))
+    rows = q.order_by(Notification.created_at.desc()).limit(limit).all()
+    return jsonify({"items": [n.to_dict() for n in rows]})
+
+
+@app.route("/api/notifications/unread-count")
+@token_required
+def notifications_unread_count():
+    uid = g.current_user.id
+    unread = (
+        Notification.query.filter_by(user_id=uid)
+        .filter(Notification.read_at.is_(None))
+        .count()
+    )
+    # Admins: align the badge with actionable work — pending appeals must show even if no in-app
+    # Notification row exists (e.g. appeal from before notifications shipped) or appeal rows were
+    # read. Use DB pending count and avoid double-counting unread `appeal_submitted` notifications.
+    if current_user_role() == "admin":
+        ack = getattr(g.current_user, "notification_ack_at", None)
+        pq = Appeal.query.filter_by(status="pending")
+        if ack is not None:
+            pq = pq.filter(Appeal.created_at > ack)
+        pending = pq.count()
+        appeal_unread = (
+            Notification.query.filter_by(user_id=uid, kind="appeal_submitted")
+            .filter(Notification.read_at.is_(None))
+            .count()
+        )
+        n = max(0, unread - appeal_unread + pending)
+    else:
+        n = unread
+    return jsonify({"count": n})
+
+
+@app.route("/api/notifications/<int:nid>/read", methods=["PATCH"])
+@token_required
+def notifications_mark_read(nid):
+    n = db.session.get(Notification, nid)
+    if not n or n.user_id != g.current_user.id:
+        return jsonify({"error": "Notification not found"}), 404
+    if n.read_at is None:
+        n.read_at = datetime.utcnow()
+        db.session.commit()
+    return jsonify(n.to_dict())
+
+
+@app.route("/api/notifications/read-all", methods=["POST"])
+@token_required
+def notifications_mark_all_read():
+    now = datetime.utcnow()
+    rows = (
+        Notification.query.filter_by(user_id=g.current_user.id)
+        .filter(Notification.read_at.is_(None))
+        .all()
+    )
+    for row in rows:
+        row.read_at = now
+    g.current_user.notification_ack_at = now
+    db.session.commit()
+    return jsonify({"ok": True, "updated": len(rows)})
+
+
+@app.route("/api/notifications/acknowledge", methods=["POST"])
+@token_required
+def notifications_acknowledge():
+    """Mark notification center as seen — resets badge (including admin pending-appeal indicator)."""
+    g.current_user.notification_ack_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1445,6 +1634,150 @@ def report_company_wise():
             "max_package": max(pkgs) if pkgs else 0,
         })
     return jsonify(rows)
+
+
+@app.route("/api/reports/analytics")
+@admin_required
+def report_analytics():
+    """Aggregated KPIs, department breakdowns, and top companies for the analytical reports dashboard."""
+    p_agg = (
+        db.session.query(
+            func.count(Placement.id),
+            func.avg(Placement.package_lpa),
+            func.max(Placement.package_lpa),
+            func.min(Placement.package_lpa),
+        )
+        .filter(Placement.status == "placed")
+        .one()
+    )
+    n_placed = int(p_agg[0] or 0)
+    avg_pkg = float(p_agg[1]) if p_agg[1] is not None else 0.0
+    max_pkg = float(p_agg[2]) if p_agg[2] is not None else 0.0
+    min_pkg = float(p_agg[3]) if p_agg[3] is not None else 0.0
+    if n_placed == 0:
+        avg_pkg = max_pkg = min_pkg = 0.0
+
+    departments = (
+        db.session.query(Student.department).distinct().order_by(Student.department).all()
+    )
+    placement_depts = []
+    for (dept,) in departments:
+        total = Student.query.filter_by(department=dept).count()
+        placed = (
+            Placement.query.join(Student)
+            .filter(Student.department == dept, Placement.status == "placed")
+            .count()
+        )
+        pct = round(placed / total * 100, 1) if total else 0
+        placement_depts.append(
+            {
+                "department": dept,
+                "total_students": total,
+                "placed": placed,
+                "rate_pct": pct,
+            }
+        )
+
+    top_rec = (
+        db.session.query(
+            Company.name,
+            func.count(Placement.id).label("hires"),
+            func.avg(Placement.package_lpa).label("avg_pkg"),
+        )
+        .join(Placement, Placement.company_id == Company.id)
+        .filter(Placement.status == "placed")
+        .group_by(Company.id)
+        .order_by(func.count(Placement.id).desc(), Company.name)
+        .limit(10)
+        .all()
+    )
+    top_recruiters = [
+        {
+            "company_name": name,
+            "hires": int(hires or 0),
+            "avg_package": round(float(apkg or 0), 3) if apkg is not None else 0.0,
+        }
+        for name, hires, apkg in top_rec
+    ]
+
+    n_intern = Internship.query.count()
+    n_completed = Internship.query.filter_by(status="completed").count()
+    n_ongoing = Internship.query.filter_by(status="ongoing").count()
+    i_stip_avg = db.session.query(func.avg(Internship.stipend)).filter(Internship.stipend > 0).scalar()
+    avg_stip = float(i_stip_avg) if i_stip_avg is not None else 0.0
+
+    internship_depts = []
+    for (dept,) in departments:
+        total = Student.query.filter_by(department=dept).count()
+        with_intern = (
+            db.session.query(func.count(func.distinct(Internship.student_id)))
+            .join(Student)
+            .filter(Student.department == dept)
+            .scalar()
+        )
+        completed = (
+            Internship.query.join(Student)
+            .filter(Student.department == dept, Internship.status == "completed")
+            .count()
+        )
+        ongoing = (
+            Internship.query.join(Student)
+            .filter(Student.department == dept, Internship.status == "ongoing")
+            .count()
+        )
+        wi = int(with_intern or 0)
+        internship_depts.append(
+            {
+                "department": dept,
+                "total_students": total,
+                "with_internship": wi,
+                "completed": completed,
+                "ongoing": ongoing,
+                "rate_pct": round(wi / total * 100, 1) if total else 0,
+            }
+        )
+
+    top_hosts = (
+        db.session.query(
+            Company.name,
+            func.count(Internship.id).label("icount"),
+            func.avg(Internship.stipend).label("avg_stip"),
+        )
+        .join(Internship, Internship.company_id == Company.id)
+        .group_by(Company.id)
+        .order_by(func.count(Internship.id).desc(), Company.name)
+        .limit(10)
+        .all()
+    )
+    top_hosts_list = [
+        {
+            "company_name": name,
+            "internships": int(ic or 0),
+            "avg_stipend": round(float(avs or 0), 2) if avs is not None else 0.0,
+        }
+        for name, ic, avs in top_hosts
+    ]
+
+    return jsonify(
+        {
+            "placement": {
+                "total_placed": n_placed,
+                "avg_package": round(avg_pkg, 3) if n_placed else 0.0,
+                "highest_package": round(max_pkg, 3) if n_placed else 0.0,
+                "lowest_package": round(min_pkg, 3) if n_placed else 0.0,
+                "departments": placement_depts,
+                "top_recruiters": top_recruiters,
+            },
+            "internship": {
+                "total_internships": n_intern,
+                "completed": n_completed,
+                "ongoing": n_ongoing,
+                "avg_stipend": round(avg_stip, 2),
+                "departments": internship_depts,
+                "top_hosts": top_hosts_list,
+            },
+        }
+    )
 
 
 @app.route("/api/reports/export/<report_type>")
@@ -1585,6 +1918,31 @@ def _ensure_users_password_reset_columns():
         print("PlaceTrack: added column users.password_reset_expires")
 
 
+def _ensure_users_notification_ack_at_column():
+    inspector = sa_inspect(db.engine)
+    users_table = next((t for t in inspector.get_table_names() if t.lower() == "users"), None)
+    if not users_table:
+        return
+    qtbl = db.engine.dialect.identifier_preparer.quote(users_table)
+    col_names = {c["name"] for c in inspector.get_columns(users_table)}
+    if "notification_ack_at" in col_names:
+        return
+    ack_type = "TIMESTAMP" if db.engine.dialect.name == "postgresql" else "DATETIME"
+    with db.engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE {qtbl} ADD COLUMN notification_ack_at {ack_type} NULL"))
+    print("PlaceTrack: added column users.notification_ack_at")
+
+
+def _ensure_notifications_table():
+    try:
+        inspector = sa_inspect(db.engine)
+        if "notifications" not in inspector.get_table_names():
+            Notification.__table__.create(db.engine, checkfirst=True)
+            print("PlaceTrack: created missing table 'notifications'")
+    except Exception as ex:
+        print("PlaceTrack: notifications schema check:", ex)
+
+
 def _ensure_students_course_column():
     inspector = sa_inspect(db.engine)
     students_table = next((t for t in inspector.get_table_names() if t.lower() == "students"), None)
@@ -1603,7 +1961,9 @@ def _ensure_db_schema():
     """Create all tables; migrate legacy schemas."""
     db.create_all()
     _ensure_appeals_table()
+    _ensure_notifications_table()
     _ensure_users_password_reset_columns()
+    _ensure_users_notification_ack_at_column()
     _ensure_students_course_column()
 
 

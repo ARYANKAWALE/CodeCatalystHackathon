@@ -65,7 +65,19 @@ export default function Reports() {
       </div>
 
       <div className="row g-4 mb-5">
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-3">
+          <Link to="/reports/analytics" className="report-card h-100">
+            <div
+              className="report-icon"
+              style={{ background: 'var(--primary-bg)', color: 'var(--primary)' }}
+            >
+              <i className="bi bi-pie-chart-fill" aria-hidden />
+            </div>
+            <div className="fw-semibold">Analytical Reports</div>
+            <div className="small text-muted mt-1">KPIs, departments, top companies</div>
+          </Link>
+        </div>
+        <div className="col-md-6 col-lg-3">
           <Link to="/reports/placement-summary" className="report-card h-100">
             <div
               className="report-icon"
@@ -76,7 +88,7 @@ export default function Reports() {
             <div className="fw-semibold">Placement Summary</div>
           </Link>
         </div>
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-3">
           <Link to="/reports/internship-summary" className="report-card h-100">
             <div
               className="report-icon"
@@ -87,7 +99,7 @@ export default function Reports() {
             <div className="fw-semibold">Internship Summary</div>
           </Link>
         </div>
-        <div className="col-md-4">
+        <div className="col-md-6 col-lg-3">
           <Link to="/reports/company-wise" className="report-card h-100">
             <div
               className="report-icon"

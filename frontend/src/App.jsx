@@ -25,6 +25,7 @@ import PlacementForm from './pages/PlacementForm';
 import PlacementView from './pages/PlacementView';
 import SearchResults from './pages/SearchResults';
 import Reports from './pages/Reports';
+import AnalyticalReports from './pages/AnalyticalReports';
 import PlacementSummary from './pages/PlacementSummary';
 import InternshipSummary from './pages/InternshipSummary';
 import CompanyWiseReport from './pages/CompanyWiseReport';
@@ -79,6 +80,7 @@ function AppLayout() {
           <Route path="/placements/:id" element={<P><PlacementView /></P>} />
           <Route path="/search" element={<P><SearchResults /></P>} />
           <Route path="/reports" element={<P><AdminRoute><Reports /></AdminRoute></P>} />
+          <Route path="/reports/analytics" element={<P><AdminRoute><AnalyticalReports /></AdminRoute></P>} />
           <Route path="/reports/placement-summary" element={<P><AdminRoute><PlacementSummary /></AdminRoute></P>} />
           <Route path="/reports/internship-summary" element={<P><AdminRoute><InternshipSummary /></AdminRoute></P>} />
           <Route path="/reports/company-wise" element={<P><AdminRoute><CompanyWiseReport /></AdminRoute></P>} />

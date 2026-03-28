@@ -2,6 +2,7 @@ import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import NotificationBell from './NotificationBell';
 
 export default function Navbar({ children }) {
   const { user, logout } = useAuth();
@@ -58,7 +59,8 @@ export default function Navbar({ children }) {
     },
     ...(isAdmin
       ? [
-          { to: '/reports', icon: 'bi-file-earmark-bar-graph-fill', label: 'Reports' },
+          { to: '/reports/analytics', icon: 'bi-pie-chart-fill', label: 'Analytics' },
+          { to: '/reports', icon: 'bi-file-earmark-bar-graph-fill', label: 'Reports', end: true },
           { to: '/appeals', icon: 'bi-inbox-fill', label: 'Appeals' },
         ]
       : []),
@@ -187,6 +189,9 @@ export default function Navbar({ children }) {
             </div>
             <span className="fw-bold">PlaceTrack</span>
           </Link>
+          <div className="mobile-chrome-bell">
+            <NotificationBell />
+          </div>
         </header>
 
         <main className="main-content">{children}</main>

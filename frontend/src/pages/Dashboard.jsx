@@ -6,6 +6,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import StatusBadge from '../components/StatusBadge';
+import NotificationBell from '../components/NotificationBell';
 import { InternshipsEmptyIllustration, PlacementsEmptyIllustration } from '../components/StudentDashboardEmptyIllustration';
 import CgpaRing from '../components/CgpaRing';
 import { parseSkillTags } from '../utils/skillsParse';
@@ -130,12 +131,15 @@ export default function Dashboard() {
 
     return (
       <div>
-        <div className="page-header">
+        <header className="page-header d-flex justify-content-between align-items-center w-100">
           <div>
             <h1>My dashboard</h1>
             <p className="subtitle">Signed in as {user?.username}</p>
           </div>
-        </div>
+          <div className="flex-shrink-0 d-none d-md-block">
+            <NotificationBell />
+          </div>
+        </header>
 
         <div className="detail-header student-dashboard-hero">
           <div className="student-dashboard-hero__main">
@@ -371,12 +375,15 @@ function AdminDashboard({ data, doughnutOptions }) {
 
   return (
       <div className="admin-dashboard-page">
-        <div className="page-header">
+        <header className="page-header d-flex justify-content-between align-items-center w-100">
           <div>
             <h1>Admin dashboard</h1>
             <p className="subtitle">Overview and recent activity</p>
           </div>
-        </div>
+          <div className="flex-shrink-0 d-none d-md-block">
+            <NotificationBell />
+          </div>
+        </header>
 
         {(data.pending_appeals ?? 0) > 0 && (
           <div className="alert alert-warning border-0 shadow-sm d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4 admin-dashboard-alert">

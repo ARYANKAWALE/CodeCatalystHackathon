@@ -20,5 +20,8 @@ services:
         generateValue: true
       - key: CORS_ORIGINS
         value: https://your-app.vercel.app
+      # Base URL of the deployed React app (no trailing slash). Required for password-reset email links.
+      - key: FRONTEND_URL
+        value: https://your-app.vercel.app
       - key: PYTHON_VERSION
         value: "3.12.0"

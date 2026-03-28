@@ -53,6 +53,53 @@ class Appeal(db.Model):
         }
 
 
+def notification_kind_label(kind: str) -> str:
+    """Short category label for UI (e.g. YouTube-style notification types)."""
+    labels = {
+        "general": "General",
+        "internship_created": "New internship",
+        "internship_status": "Internship update",
+        "placement_created": "New placement",
+        "placement_status": "Placement update",
+        "appeal_submitted": "Appeal",
+        "appeal_accepted": "Appeal approved",
+        "appeal_rejected": "Appeal update",
+    }
+    k = (kind or "").strip() or "general"
+    if k in labels:
+        return labels[k]
+    return k.replace("_", " ").title()
+
+
+class Notification(db.Model):
+    """In-app notification for a user (student or admin)."""
+
+    __tablename__ = "notifications"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    kind = db.Column(db.String(40), nullable=False, default="general")
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text, nullable=True)
+    link = db.Column(db.String(500), nullable=True)
+    read_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", backref=db.backref("notifications", lazy="dynamic", cascade="all, delete-orphan"))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "kind": self.kind,
+            "kind_label": notification_kind_label(self.kind),
+            "title": self.title,
+            "body": self.body or "",
+            "link": self.link,
+            "read": self.read_at is not None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class User(db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
@@ -64,6 +111,8 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     password_reset_token_hash = db.Column(db.String(128), nullable=True)
     password_reset_expires = db.Column(db.DateTime, nullable=True)
+    # Last time the user opened the notification panel or cleared alerts (clears admin appeal badge for older items).
+    notification_ack_at = db.Column(db.DateTime, nullable=True)
 
     student = db.relationship("Student", backref="user_account", uselist=False)
 
