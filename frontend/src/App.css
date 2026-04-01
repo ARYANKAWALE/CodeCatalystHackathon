@@ -2399,19 +2399,25 @@ code { color: var(--primary-light); background: var(--primary-bg); padding: .15e
    SIDEBAR — PHONE DRAWER (tablet+ keeps fixed left column)
    ══════════════════════════════════════════════ */
 @media (max-width: 767.98px) {
-  /* One screen column: shell fills viewport; only main scrolls */
+  /*
+   * Use document (window) scrolling instead of a nested overflow on .main-content.
+   * Fixed 100dvh + inner scroll often clips the last pixels on mobile Safari / Chrome
+   * (dynamic toolbars, nested scroll with wide tables). Growing the shell with content
+   * lets the browser scroll to the real end of the page.
+   */
   .app-shell {
-    height: 100vh;
-    height: 100dvh;
-    max-height: 100vh;
-    max-height: 100dvh;
-    overflow: hidden;
+    min-height: 100svh;
+    min-height: 100dvh;
+    height: auto;
+    max-height: none;
+    overflow-x: clip;
+    overflow-y: visible;
   }
 
   .app-main-area {
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
+    flex: 1 1 auto;
+    min-height: auto;
+    overflow: visible;
   }
 
   .mobile-chrome-bar {
@@ -2419,6 +2425,9 @@ code { color: var(--primary-light); background: var(--primary-bg); padding: .15e
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     column-gap: 0.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 1025;
   }
 
   .mobile-chrome-menu-btn {
@@ -2435,14 +2444,13 @@ code { color: var(--primary-light); background: var(--primary-bg); padding: .15e
   }
 
   .app-main-area .main-content {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
+    flex: none;
+    min-height: auto;
+    overflow: visible;
+    -webkit-overflow-scrolling: auto;
+    overscroll-behavior-y: auto;
     padding-top: 1rem;
-    padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1.25rem));
   }
 
   .app-sidebar {
