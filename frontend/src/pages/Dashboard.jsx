@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, useLayoutEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Chart as ChartJS, ArcElement, Tooltip } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
@@ -326,9 +326,27 @@ export default function Dashboard() {
 
 function AdminDashboard({ data, doughnutOptions }) {
   const [recentTab, setRecentTab] = useState('placements');
+  const deptScrollRef = useRef(null);
+  const [deptListClipped, setDeptListClipped] = useState(false);
 
   const deptStats = [...(data.dept_stats || [])].sort((a, b) => (b[1] || 0) - (a[1] || 0));
   const deptMax = deptStats.reduce((m, [, c]) => Math.max(m, Number(c) || 0), 0) || 1;
+
+  useLayoutEffect(() => {
+    if (deptStats.length === 0) {
+      setDeptListClipped(false);
+      return undefined;
+    }
+    const el = deptScrollRef.current;
+    if (!el) return undefined;
+    const update = () => {
+      setDeptListClipped(el.scrollHeight > el.clientHeight + 1);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [deptStats]);
 
   const placementCounts = data.placement_status_counts || {};
   const placementStatusOrder = useMemo(() => {
@@ -462,42 +480,51 @@ function AdminDashboard({ data, doughnutOptions }) {
           </div>
         </div>
 
-        <div className="row g-4 mb-4">
-          <div className="col-lg-6">
-            <div className="card border-0 shadow-sm admin-dash-widget">
-              <div className="card-body">
+        <div className="row g-4 mb-4 align-items-stretch">
+          <div className="col-lg-6 d-flex">
+            <div className="card border-0 shadow-sm admin-dash-widget flex-fill h-100 w-100">
+              <div className="card-body d-flex flex-column">
                 <h2 className="admin-dash-widget-title h5 mb-4">Students by Department</h2>
                 {deptStats.length === 0 ? (
                   <p className="text-muted small mb-0">No students yet.</p>
                 ) : (
-                  <ul className="list-unstyled mb-0 admin-dept-list">
-                    {deptStats.map(([name, count]) => {
-                      const n = Number(count) || 0;
-                      const pct = Math.round((n / deptMax) * 100);
-                      return (
-                        <li key={name || '—'} className="admin-dept-item">
-                          <div className="admin-dept-row">
-                            <span className="admin-dept-name text-truncate" title={name || ''}>
-                              {name || '—'}
-                            </span>
-                            <span className="admin-dept-count">{n}</span>
-                          </div>
-                          <div className="admin-dept-bar-track">
-                            <div
-                              className="admin-dept-bar-fill"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <div className="admin-dept-scroll-block">
+                    <div ref={deptScrollRef} className="admin-dept-scroll-wrap">
+                      <ul className="list-unstyled mb-0 admin-dept-list">
+                        {deptStats.map(([name, count]) => {
+                          const n = Number(count) || 0;
+                          const pct = Math.round((n / deptMax) * 100);
+                          return (
+                            <li key={name || '—'} className="admin-dept-item">
+                              <div className="admin-dept-row">
+                                <span className="admin-dept-name text-truncate" title={name || ''}>
+                                  {name || '—'}
+                                </span>
+                                <span className="admin-dept-count">{n}</span>
+                              </div>
+                              <div className="admin-dept-bar-track">
+                                <div
+                                  className="admin-dept-bar-fill"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                    {deptListClipped && (
+                      <p className="admin-dept-view-more mb-0" aria-live="polite">
+                        View more
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
           </div>
-          <div className="col-lg-6">
-            <div className="card border-0 shadow-sm admin-dash-widget">
+          <div className="col-lg-6 d-flex">
+            <div className="card border-0 shadow-sm admin-dash-widget flex-fill h-100 w-100">
               <div className="card-body">
                 <h2 className="admin-dash-widget-title h5 mb-3">Placement Status</h2>
                 <div className="placement-status-layout">

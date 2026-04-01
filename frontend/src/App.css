@@ -1784,6 +1784,65 @@ code { color: var(--primary-light); background: var(--primary-bg); padding: .15e
 
 .admin-dept-list { display: flex; flex-direction: column; gap: 1.15rem; }
 
+.admin-dept-scroll-block {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-dept-scroll-wrap {
+  max-height: 350px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  margin-right: -2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(43, 90, 131, 0.45) transparent;
+}
+
+.admin-dept-scroll-wrap::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admin-dept-scroll-wrap::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.admin-dept-scroll-wrap::-webkit-scrollbar-thumb {
+  background: rgba(43, 90, 131, 0.4);
+  border-radius: 999px;
+}
+
+.admin-dept-scroll-wrap::-webkit-scrollbar-thumb:hover {
+  background: rgba(43, 90, 131, 0.65);
+}
+
+[data-theme="dark"] .admin-dept-scroll-wrap {
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+[data-theme="dark"] .admin-dept-scroll-wrap::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+}
+
+[data-theme="dark"] .admin-dept-scroll-wrap::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.55);
+}
+
+.admin-dept-view-more {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-top: 0.65rem;
+  margin-top: 0.35rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  flex-shrink: 0;
+}
+
 .admin-dept-row {
   display: flex;
   align-items: baseline;
