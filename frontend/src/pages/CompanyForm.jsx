@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 import {
   IN_MOBILE_DIGITS,
   IN_PHONE_PREFIX,
@@ -52,7 +53,7 @@ export default function CompanyForm() {
           setError('');
         }
       } catch (e) {
-        if (!cancelled) setError(e.message || 'Failed to load company');
+        if (!cancelled) setError(getErrorMessage(e, 'Failed to load company'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -94,7 +95,7 @@ export default function CompanyForm() {
       }
       navigate('/companies');
     } catch (err) {
-      setError(err.message || 'Save failed');
+      setError(getErrorMessage(err, 'Save failed'));
     } finally {
       setSaving(false);
     }

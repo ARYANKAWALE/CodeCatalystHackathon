@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 
@@ -46,7 +47,7 @@ export default function CompanyView() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'Failed to load company');
+          setError(getErrorMessage(e, 'Failed to load company'));
           setCompany(null);
         }
       } finally {
@@ -64,7 +65,7 @@ export default function CompanyView() {
       await api.del(`/companies/${id}`);
       navigate('/companies');
     } catch (e) {
-      setError(e.message || 'Delete failed');
+      setError(getErrorMessage(e, 'Delete failed'));
     }
   };
 

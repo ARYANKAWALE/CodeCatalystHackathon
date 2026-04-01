@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 function notificationTypeClass(kind) {
   const k = String(kind || 'general').toLowerCase();
@@ -28,6 +29,7 @@ export default function NotificationBell({ className = '' }) {
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [bannerError, setBannerError] = useState('');
   const rootRef = useRef(null);
 
   const refreshCount = useCallback(async () => {
@@ -41,11 +43,13 @@ export default function NotificationBell({ className = '' }) {
 
   const loadList = useCallback(async () => {
     setLoading(true);
+    setBannerError('');
     try {
       const data = await api.get('/notifications?limit=30');
       setItems(Array.isArray(data?.items) ? data.items : []);
-    } catch {
+    } catch (e) {
       setItems([]);
+      setBannerError(getErrorMessage(e, 'Could not load notifications'));
     } finally {
       setLoading(false);
     }
@@ -89,23 +93,26 @@ export default function NotificationBell({ className = '' }) {
 
   const markAllRead = async () => {
     try {
+      setBannerError('');
       await api.post('/notifications/read-all', {});
       setItems((prev) => prev.map((n) => ({ ...n, read: true })));
       await refreshCount();
-    } catch {
-      /* ignore */
+    } catch (e) {
+      setBannerError(getErrorMessage(e, 'Could not mark all as read'));
     }
   };
 
   const onItemClick = async (n) => {
     try {
+      setBannerError('');
       if (!n.read) {
         await api.patch(`/notifications/${n.id}/read`, {});
         setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
         await refreshCount();
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      setBannerError(getErrorMessage(e, 'Could not update notification'));
+      return;
     }
     setOpen(false);
     if (n.link) navigate(n.link);
@@ -139,13 +146,18 @@ export default function NotificationBell({ className = '' }) {
             )}
           </div>
           <div className="notification-dropdown-body">
+            {bannerError && (
+              <div className="px-3 py-2 small text-danger border-bottom" role="alert">
+                {bannerError}
+              </div>
+            )}
             {loading && (
               <div className="text-center text-muted py-4 small">
                 <span className="spinner-border spinner-border-sm me-2" role="status" />
                 Loading…
               </div>
             )}
-            {!loading && items.length === 0 && (
+            {!loading && items.length === 0 && !bannerError && (
               <div className="notification-empty px-3 py-4 text-center small">
                 <p className="text-muted mb-2 mb-md-3">No notifications yet.</p>
               </div>

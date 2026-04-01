@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 export default function PlacementSummary() {
   const [rows, setRows] = useState([]);
@@ -19,7 +20,7 @@ export default function PlacementSummary() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'Failed to load report');
+          setError(getErrorMessage(e, 'Failed to load report'));
           setRows([]);
         }
       } finally {

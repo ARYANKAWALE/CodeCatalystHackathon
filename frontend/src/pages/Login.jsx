@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { getErrorMessage } from '../utils/errorMessage';
 
 export default function Login() {
   const { user, loading, login } = useAuth();
@@ -26,7 +27,7 @@ export default function Login() {
       await login(username.trim(), password);
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(err.message || 'Login failed');
+      setError(getErrorMessage(err, 'Login failed'));
     } finally {
       setSubmitting(false);
     }

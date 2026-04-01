@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 export default function ChangePassword() {
   const [current, setCurrent] = useState('');
@@ -31,7 +32,7 @@ export default function ChangePassword() {
       setNewPassword('');
       setConfirm('');
     } catch (err) {
-      setError(err.message || 'Could not update password');
+      setError(getErrorMessage(err, 'Could not update password'));
     } finally {
       setSubmitting(false);
     }

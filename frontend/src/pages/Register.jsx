@@ -15,6 +15,7 @@ import {
   sanitizeIndiaMobileInput,
   toIndiaE164,
 } from '../utils/phoneIndia';
+import { getErrorMessage } from '../utils/errorMessage';
 
 export default function Register() {
   const { user, loading, register } = useAuth();
@@ -70,7 +71,7 @@ export default function Register() {
       await register(data);
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      setError(getErrorMessage(err, 'Registration failed'));
     } finally {
       setSubmitting(false);
     }

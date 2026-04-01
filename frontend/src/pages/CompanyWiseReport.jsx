@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 export default function CompanyWiseReport() {
   const [rows, setRows] = useState([]);
@@ -19,7 +20,7 @@ export default function CompanyWiseReport() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'Failed to load report');
+          setError(getErrorMessage(e, 'Failed to load report'));
           setRows([]);
         }
       } finally {

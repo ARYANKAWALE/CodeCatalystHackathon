@@ -78,7 +78,8 @@ function isAnonymousAuthRequest(url, method) {
   );
 }
 
-async function request(url, options = {}) {
+/** Shared fetch: auth header, timeout, network errors, and 401 handling (same as JSON API). */
+async function apiFetch(url, options = {}) {
   const method = String(options.method || 'GET').toUpperCase();
   const token = isAnonymousAuthRequest(url, method) ? null : getToken();
   const headers = { 'Content-Type': 'application/json', ...options.headers };
@@ -107,7 +108,6 @@ async function request(url, options = {}) {
   }
 
   if (res.status === 401) {
-    const method = String(options.method || 'GET').toUpperCase();
     const publicAuthPost =
       method === 'POST' &&
       (url.includes('auth/login') ||
@@ -143,6 +143,11 @@ async function request(url, options = {}) {
     throw new UnauthorizedError();
   }
 
+  return res;
+}
+
+async function request(url, options = {}) {
+  const res = await apiFetch(url, options);
   if (options.raw) return res;
 
   const contentType = res.headers.get('content-type') || '';
@@ -164,16 +169,18 @@ async function request(url, options = {}) {
   return res;
 }
 
+/** GET binary/stream response: same timeout and 401 behavior as JSON API; throws on HTTP error with parsed body. */
+async function getBlobRequest(url) {
+  const res = await apiFetch(url, { method: 'GET' });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res;
+}
+
 export const api = {
   get: (url) => request(url),
   post: (url, body) => request(url, { method: 'POST', body: JSON.stringify(body) }),
   put: (url, body) => request(url, { method: 'PUT', body: JSON.stringify(body) }),
   patch: (url, body) => request(url, { method: 'PATCH', body: JSON.stringify(body) }),
   del: (url) => request(url, { method: 'DELETE' }),
-  getBlob: (url) => {
-    const token = getToken();
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return fetch(apiUrl(url), { headers });
-  },
+  getBlob: (url) => getBlobRequest(url),
 };

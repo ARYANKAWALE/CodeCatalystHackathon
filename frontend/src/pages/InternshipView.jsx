@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 
@@ -44,7 +45,7 @@ export default function InternshipView() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'Failed to load internship');
+          setError(getErrorMessage(e, 'Failed to load internship'));
           setInternship(null);
         }
       } finally {
@@ -62,7 +63,7 @@ export default function InternshipView() {
       await api.del(`/internships/${id}`);
       navigate('/internships');
     } catch (e) {
-      setError(e.message || 'Delete failed');
+      setError(getErrorMessage(e, 'Delete failed'));
     }
   };
 

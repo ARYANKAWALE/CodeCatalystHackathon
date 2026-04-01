@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Chart as ChartJS, ArcElement, Tooltip } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import StatusBadge from '../components/StatusBadge';
@@ -94,7 +95,7 @@ export default function Dashboard() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'Failed to load dashboard');
+          setError(getErrorMessage(e, 'Failed to load dashboard'));
           setData(null);
         }
       } finally {

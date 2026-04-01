@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 /**
  * Compact resume URL control for the identity header (not a full-width card).
@@ -31,7 +32,7 @@ export default function IdentityResumeField({ resumeLink, onSaved, readOnly }) {
       setOk(true);
       setEditing(false);
     } catch (err) {
-      setError(err.message || 'Could not save');
+      setError(getErrorMessage(err, 'Could not save'));
     } finally {
       setSaving(false);
     }

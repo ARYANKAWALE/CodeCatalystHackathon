@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 export default function ResetPassword() {
   const { user, loading } = useAuth();
@@ -39,7 +40,7 @@ export default function ResetPassword() {
       await api.post('/auth/reset-password', { token, password });
       navigate('/login', { replace: true, state: { passwordReset: true } });
     } catch (err) {
-      setError(err.message || 'Reset failed');
+      setError(getErrorMessage(err, 'Reset failed'));
     } finally {
       setSubmitting(false);
     }

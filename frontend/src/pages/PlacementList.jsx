@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import Pagination from '../components/Pagination';
@@ -67,7 +68,7 @@ export default function PlacementList() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'Failed to load placements');
+          setError(getErrorMessage(e, 'Failed to load placements'));
           setData(null);
         }
       } finally {
@@ -111,7 +112,7 @@ export default function PlacementList() {
       setData(res);
       setError('');
     } catch (e) {
-      setError(e.message || 'Delete failed');
+      setError(getErrorMessage(e, 'Delete failed'));
     }
   };
 

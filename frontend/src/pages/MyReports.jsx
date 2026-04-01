@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 
@@ -25,7 +26,7 @@ export default function MyReports() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'Failed to load report');
+          setError(getErrorMessage(e, 'Failed to load report'));
           setData(null);
         }
       } finally {

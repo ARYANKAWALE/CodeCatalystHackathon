@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 import {
   DEPARTMENTS,
   getCourseGroupsForDepartment,
@@ -65,7 +66,7 @@ export default function StudentForm() {
           setError('');
         }
       } catch (e) {
-        if (!cancelled) setError(e.message || 'Failed to load student');
+        if (!cancelled) setError(getErrorMessage(e, 'Failed to load student'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -121,7 +122,7 @@ export default function StudentForm() {
       }
       navigate('/students');
     } catch (err) {
-      setError(err.message || 'Save failed');
+      setError(getErrorMessage(err, 'Save failed'));
     } finally {
       setSaving(false);
     }

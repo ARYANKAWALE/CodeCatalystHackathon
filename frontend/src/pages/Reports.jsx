@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 const EXPORT_TYPES = [
   { type: 'students', label: 'Students' },
@@ -28,16 +29,6 @@ export default function Reports() {
     setExporting(type);
     try {
       const res = await api.getBlob(`/reports/export/${type}`);
-      if (res.status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-        return;
-      }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Download failed');
-      }
       const blob = await res.blob();
       const name =
         parseFilename(res.headers.get('content-disposition')) || `${type}_export.xlsx`;
@@ -51,7 +42,7 @@ export default function Reports() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      window.alert(e.message || 'Download failed');
+      window.alert(getErrorMessage(e, 'Download failed'));
     } finally {
       setExporting(null);
     }

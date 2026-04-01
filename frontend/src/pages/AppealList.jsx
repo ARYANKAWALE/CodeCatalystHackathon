@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import Pagination from '../components/Pagination';
@@ -45,7 +46,7 @@ export default function AppealList() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'Failed to load requests');
+          setError(getErrorMessage(e, 'Failed to load requests'));
           setData(null);
         }
       } finally {
@@ -82,7 +83,7 @@ export default function AppealList() {
       const res = await api.get(`/appeals?${query}`);
       setData(res);
     } catch (e) {
-      window.alert(e.message || 'Accept failed');
+      window.alert(getErrorMessage(e, 'Accept failed'));
     } finally {
       setActionId(null);
     }
@@ -97,7 +98,7 @@ export default function AppealList() {
       const res = await api.get(`/appeals?${query}`);
       setData(res);
     } catch (e) {
-      window.alert(e.message || 'Reject failed');
+      window.alert(getErrorMessage(e, 'Reject failed'));
     } finally {
       setActionId(null);
     }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 const STATUSES = ['applied', 'selected', 'ongoing', 'completed', 'rejected'];
 
@@ -64,7 +65,7 @@ export default function InternshipForm() {
           setForm({ ...emptyForm, student_id: preStudent });
         }
       } catch (e) {
-        if (!cancelled) setError(e.message || 'Failed to load form data');
+        if (!cancelled) setError(getErrorMessage(e, 'Failed to load form data'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -102,7 +103,7 @@ export default function InternshipForm() {
       }
       navigate('/internships');
     } catch (err) {
-      setError(err.message || 'Save failed');
+      setError(getErrorMessage(err, 'Save failed'));
     } finally {
       setSaving(false);
     }

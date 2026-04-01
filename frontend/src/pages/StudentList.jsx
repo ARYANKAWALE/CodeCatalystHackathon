@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 import Pagination from '../components/Pagination';
 
@@ -40,7 +41,7 @@ export default function StudentList() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'Failed to load students');
+          setError(getErrorMessage(e, 'Failed to load students'));
           setData(null);
         }
       } finally {
@@ -84,7 +85,7 @@ export default function StudentList() {
       setData(res);
       setError('');
     } catch (e) {
-      setError(e.message || 'Delete failed');
+      setError(getErrorMessage(e, 'Delete failed'));
     }
   };
 

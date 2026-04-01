@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 
@@ -27,7 +28,7 @@ export default function SearchResults() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'Search failed');
+          setError(getErrorMessage(e, 'Search failed'));
           setData(null);
         }
       } finally {

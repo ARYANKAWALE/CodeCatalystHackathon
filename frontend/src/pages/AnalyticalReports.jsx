@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 function fmtLpa(n) {
   if (n == null || n === '') return '—';
@@ -47,7 +48,7 @@ export default function AnalyticalReports() {
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e.message || 'Failed to load analytics');
+          setError(getErrorMessage(e, 'Failed to load analytics'));
           setData(null);
         }
       } finally {

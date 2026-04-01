@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 
 export default function AppealForm() {
@@ -78,7 +79,7 @@ export default function AppealForm() {
       await api.post('/appeals', body);
       navigate('/appeals');
     } catch (err) {
-      setError(err.message || 'Could not submit request');
+      setError(getErrorMessage(err, 'Could not submit request'));
     } finally {
       setSubmitting(false);
     }

@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { api } from '../api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 export default function ForgotPassword() {
   const { user, loading } = useAuth();
@@ -25,7 +26,7 @@ export default function ForgotPassword() {
       setSuccessMsg((typeof data?.message === 'string' && data.message) || '');
       setDone(true);
     } catch (err) {
-      setError(err.message || 'Request failed');
+      setError(getErrorMessage(err, 'Request failed'));
     } finally {
       setSubmitting(false);
     }
