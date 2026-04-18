@@ -33,6 +33,8 @@ import AppealList from './pages/AppealList';
 import AppealForm from './pages/AppealForm';
 import MyReports from './pages/MyReports';
 import MyProfile from './pages/MyProfile';
+import VacancyBoard from './pages/VacancyBoard';
+import MyApplications from './pages/MyApplications';
 
 function P({ children }) {
   return <ProtectedRoute>{children}</ProtectedRoute>;
@@ -70,6 +72,8 @@ function AppLayout() {
           <Route path="/companies/add" element={<P><AdminRoute><CompanyForm /></AdminRoute></P>} />
           <Route path="/companies/:id/edit" element={<P><AdminRoute><CompanyForm /></AdminRoute></P>} />
           <Route path="/companies/:id" element={<P><CompanyView /></P>} />
+          <Route path="/vacancies" element={<P><VacancyBoard /></P>} />
+          <Route path="/my-applications" element={<P><MyApplications /></P>} />
           <Route path="/internships" element={<P><InternshipList /></P>} />
           <Route path="/internships/add" element={<P><AdminRoute><InternshipForm /></AdminRoute></P>} />
           <Route path="/internships/:id/edit" element={<P><AdminRoute><InternshipForm /></AdminRoute></P>} />

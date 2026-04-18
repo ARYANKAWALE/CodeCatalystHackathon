@@ -4,17 +4,7 @@ import { api } from '../api';
 import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
-
-function fmt(v) {
-  if (v === null || v === undefined || v === '') return '—';
-  return v;
-}
-
-function fmtDate(iso) {
-  if (!iso) return '—';
-  const d = String(iso).slice(0, 10);
-  return d || '—';
-}
+import { fmt, fmtDate, vacancyRoleLabel, vacancyCompensation } from '../utils/vacancyFormat';
 
 function websiteHref(url) {
   if (!url || !String(url).trim()) return null;
@@ -23,17 +13,35 @@ function websiteHref(url) {
   return `https://${u}`;
 }
 
+const VACANCY_FORM_EMPTY = {
+  job_title: '',
+  role_type: 'internship',
+  department: '',
+  compensation_value: '',
+  compensation_kind: 'monthly_inr',
+  application_deadline: '',
+};
+
 export default function CompanyView() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const role = String(user?.role ?? '').toLowerCase();
   const isAdmin = role === 'admin';
-  const isStudent = role === 'student' && !isAdmin && user?.student_id != null;
+  const isStudentViewer = role === 'student' && !isAdmin;
+  /** Linked student profile — can use appeals and submit vacancy applications */
+  const isStudent = isStudentViewer && user?.student_id != null;
 
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [vacancies, setVacancies] = useState([]);
+  const [vacanciesLoading, setVacanciesLoading] = useState(false);
+  const [vacancyModalOpen, setVacancyModalOpen] = useState(false);
+  const [vacancySaving, setVacancySaving] = useState(false);
+  const [editingVacancyId, setEditingVacancyId] = useState(null);
+  const [vacancyForm, setVacancyForm] = useState(VACANCY_FORM_EMPTY);
+  const [applyingVacancyId, setApplyingVacancyId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +66,139 @@ export default function CompanyView() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!id || authLoading || (!isAdmin && !isStudentViewer)) return;
+    let cancelled = false;
+    (async () => {
+      setVacanciesLoading(true);
+      try {
+        const data = await api.get(`/companies/${id}/vacancies`);
+        if (!cancelled) setVacancies(data.items || []);
+      } catch (e) {
+        if (!cancelled) setError(getErrorMessage(e, 'Failed to load vacancies'));
+      } finally {
+        if (!cancelled) setVacanciesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, authLoading, isAdmin, isStudentViewer]);
+
+  const openNewVacancyModal = () => {
+    setEditingVacancyId(null);
+    setVacancyForm({
+      ...VACANCY_FORM_EMPTY,
+      role_type: 'internship',
+      compensation_kind: 'monthly_inr',
+    });
+    setVacancyModalOpen(true);
+  };
+
+  const openEditVacancyModal = (v) => {
+    setEditingVacancyId(v.id);
+    setVacancyForm({
+      job_title: v.job_title || '',
+      role_type: v.role_type || 'internship',
+      department: v.department || '',
+      compensation_value:
+        v.compensation_value != null && v.compensation_value !== '' ? String(v.compensation_value) : '',
+      compensation_kind: v.compensation_kind || 'lpa',
+      application_deadline: v.application_deadline ? String(v.application_deadline).slice(0, 10) : '',
+    });
+    setVacancyModalOpen(true);
+  };
+
+  const closeVacancyModal = () => {
+    setVacancyModalOpen(false);
+    setEditingVacancyId(null);
+    setVacancyForm(VACANCY_FORM_EMPTY);
+  };
+
+  const handleVacancyFormRoleChange = (nextRole) => {
+    setVacancyForm((prev) => ({
+      ...prev,
+      role_type: nextRole,
+      compensation_kind: nextRole === 'internship' ? 'monthly_inr' : 'lpa',
+    }));
+  };
+
+  const submitVacancy = async (e) => {
+    e.preventDefault();
+    setVacancySaving(true);
+    try {
+      let compensationValue = null;
+      if (vacancyForm.compensation_value !== '' && vacancyForm.compensation_value != null) {
+        const n = Number(vacancyForm.compensation_value);
+        if (Number.isNaN(n)) {
+          setError('Amount must be a valid number');
+          setVacancySaving(false);
+          return;
+        }
+        compensationValue = n;
+      }
+      const body = {
+        job_title: vacancyForm.job_title.trim(),
+        role_type: vacancyForm.role_type,
+        department: vacancyForm.department.trim(),
+        compensation_kind: vacancyForm.compensation_kind,
+        compensation_value: compensationValue,
+        application_deadline: vacancyForm.application_deadline || null,
+      };
+      if (editingVacancyId) {
+        await api.put(`/vacancies/${editingVacancyId}`, body);
+      } else {
+        await api.post(`/companies/${id}/vacancies`, body);
+      }
+      const data = await api.get(`/companies/${id}/vacancies`);
+      setVacancies(data.items || []);
+      closeVacancyModal();
+      setError('');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not save vacancy'));
+    } finally {
+      setVacancySaving(false);
+    }
+  };
+
+  const handleDeleteVacancy = async (v) => {
+    if (!window.confirm(`Delete vacancy “${v.job_title}”?`)) return;
+    try {
+      await api.del(`/vacancies/${v.id}`);
+      const data = await api.get(`/companies/${id}/vacancies`);
+      setVacancies(data.items || []);
+      setError('');
+    } catch (e) {
+      setError(getErrorMessage(e, 'Delete failed'));
+    }
+  };
+
+  const handleApplyVacancy = async (v) => {
+    setApplyingVacancyId(v.id);
+    try {
+      const created = await api.post(`/vacancies/${v.id}/applications`, {});
+      setVacancies((prev) =>
+        prev.map((row) =>
+          row.id === v.id
+            ? {
+                ...row,
+                my_application: {
+                  id: created.id,
+                  status: created.status,
+                  status_label: created.status_label,
+                },
+              }
+            : row,
+        ),
+      );
+      setError('');
+    } catch (e) {
+      setError(getErrorMessage(e, 'Could not submit application'));
+    } finally {
+      setApplyingVacancyId(null);
+    }
+  };
 
   const handleDelete = async () => {
     if (!window.confirm('Delete this company? This cannot be undone.')) return;
@@ -257,6 +398,225 @@ export default function CompanyView() {
           </div>
         </div>
       </div>
+
+      {(isAdmin || isStudentViewer) && (
+        <div className="mt-4">
+          <div className="table-container">
+            <div className="card-header border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <span>Active vacancies</span>
+              {isAdmin && (
+                <button type="button" className="btn btn-primary btn-sm" onClick={openNewVacancyModal}>
+                  Add new vacancy
+                </button>
+              )}
+              {isStudentViewer && (
+                <Link to="/vacancies" className="btn btn-outline-secondary btn-sm">
+                  All open roles
+                </Link>
+              )}
+            </div>
+            <div className="table-responsive">
+              {vacanciesLoading ? (
+                <div className="text-center text-muted py-4">Loading vacancies…</div>
+              ) : (
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Job title</th>
+                      <th>Role type</th>
+                      <th>Department</th>
+                      <th>Package / stipend</th>
+                      <th>Application deadline</th>
+                      <th className="text-end">{isAdmin ? 'Actions' : 'Apply'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vacancies.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-muted text-center py-4">
+                          {isStudentViewer ? 'No open vacancies for this company right now' : 'No open vacancies recorded'}
+                        </td>
+                      </tr>
+                    ) : (
+                      vacancies.map((v) => (
+                        <tr key={v.id}>
+                          <td>{fmt(v.job_title)}</td>
+                          <td>{vacancyRoleLabel(v.role_type)}</td>
+                          <td>{fmt(v.department)}</td>
+                          <td>{vacancyCompensation(v)}</td>
+                          <td>{fmtDate(v.application_deadline)}</td>
+                          <td className="text-end text-nowrap">
+                            {isAdmin && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn btn-link btn-sm p-0 me-3"
+                                  onClick={() => openEditVacancyModal(v)}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-link btn-sm text-danger p-0"
+                                  onClick={() => handleDeleteVacancy(v)}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                            {isStudentViewer &&
+                              (isStudent ? (
+                                v.my_application ? (
+                                  <button type="button" className="btn btn-secondary btn-sm" disabled>
+                                    Applied
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    disabled={applyingVacancyId === v.id}
+                                    onClick={() => handleApplyVacancy(v)}
+                                  >
+                                    {applyingVacancyId === v.id ? 'Applying…' : 'Apply now'}
+                                  </button>
+                                )
+                              ) : (
+                                <span className="text-muted small">Link profile to apply</span>
+                              ))}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isAdmin && vacancyModalOpen && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          role="dialog"
+          aria-modal="true"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <form onSubmit={submitVacancy}>
+                <div className="modal-header">
+                  <h5 className="modal-title">{editingVacancyId ? 'Edit vacancy' : 'New vacancy'}</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    aria-label="Close"
+                    onClick={closeVacancyModal}
+                  />
+                </div>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label" htmlFor="vacancy-job-title">
+                      Job title
+                    </label>
+                    <input
+                      id="vacancy-job-title"
+                      className="form-control"
+                      value={vacancyForm.job_title}
+                      onChange={(e) => setVacancyForm((p) => ({ ...p, job_title: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label" htmlFor="vacancy-role-type">
+                      Role type
+                    </label>
+                    <select
+                      id="vacancy-role-type"
+                      className="form-select"
+                      value={vacancyForm.role_type}
+                      onChange={(e) => handleVacancyFormRoleChange(e.target.value)}
+                    >
+                      <option value="internship">Internship</option>
+                      <option value="full_time">Full-time</option>
+                    </select>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label" htmlFor="vacancy-department">
+                      Field / department
+                    </label>
+                    <input
+                      id="vacancy-department"
+                      className="form-control"
+                      value={vacancyForm.department}
+                      onChange={(e) => setVacancyForm((p) => ({ ...p, department: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="row g-3 mb-3">
+                    <div className="col-sm-6">
+                      <label className="form-label" htmlFor="vacancy-comp-kind">
+                        Compensation type
+                      </label>
+                      <select
+                        id="vacancy-comp-kind"
+                        className="form-select"
+                        value={vacancyForm.compensation_kind}
+                        onChange={(e) =>
+                          setVacancyForm((p) => ({ ...p, compensation_kind: e.target.value }))
+                        }
+                      >
+                        <option value="lpa">Package (LPA)</option>
+                        <option value="monthly_inr">Stipend (₹ / month)</option>
+                      </select>
+                    </div>
+                    <div className="col-sm-6">
+                      <label className="form-label" htmlFor="vacancy-comp-value">
+                        Amount
+                      </label>
+                      <input
+                        id="vacancy-comp-value"
+                        type="number"
+                        step="any"
+                        min="0"
+                        className="form-control"
+                        value={vacancyForm.compensation_value}
+                        onChange={(e) =>
+                          setVacancyForm((p) => ({ ...p, compensation_value: e.target.value }))
+                        }
+                        placeholder={vacancyForm.compensation_kind === 'lpa' ? 'e.g. 9.5' : 'e.g. 25000'}
+                      />
+                    </div>
+                  </div>
+                  <div className="mb-0">
+                    <label className="form-label" htmlFor="vacancy-deadline">
+                      Application deadline
+                    </label>
+                    <input
+                      id="vacancy-deadline"
+                      type="date"
+                      className="form-control"
+                      value={vacancyForm.application_deadline}
+                      onChange={(e) =>
+                        setVacancyForm((p) => ({ ...p, application_deadline: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-outline-secondary" onClick={closeVacancyModal}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={vacancySaving}>
+                    {vacancySaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,12 +10,13 @@ from urllib.parse import urlparse
 import jwt
 from flask import Flask, jsonify, request, send_file, send_from_directory, g
 from flask_cors import CORS
-from sqlalchemy import false as sql_false, func, inspect as sa_inspect, text
+from sqlalchemy import false as sql_false, func, inspect as sa_inspect, or_, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from config import Config
 from mail_utils import mail_config_snapshot, mail_ready, schedule_plain_email
-from models import db, User, Student, Company, Internship, Placement, Appeal, Notification
+from models import db, User, Student, Company, Internship, Placement, Appeal, Notification, Vacancy, Application
 from notification_templates import (
     appeal_accepted,
     appeal_received,
@@ -871,6 +872,233 @@ def companies_delete(id):
     db.session.delete(company)
     db.session.commit()
     return jsonify({"message": "Company deleted"})
+
+
+def _vacancy_from_payload(data, company_id):
+    """Validate JSON body for create/update; returns (error_message, None) or (None, dict of fields)."""
+    if not isinstance(data, dict):
+        return "Invalid JSON body", None
+    job_title = (data.get("job_title") or "").strip()
+    if not job_title:
+        return "job_title is required", None
+    role_type = (data.get("role_type") or "").strip().lower()
+    if role_type not in Vacancy.ROLE_TYPES:
+        return f"role_type must be one of: {', '.join(Vacancy.ROLE_TYPES)}", None
+    department = (data.get("department") or "").strip()
+    if not department:
+        return "department is required", None
+    kind = (data.get("compensation_kind") or "lpa").strip().lower()
+    if kind not in Vacancy.COMPENSATION_KINDS:
+        return f"compensation_kind must be one of: {', '.join(Vacancy.COMPENSATION_KINDS)}", None
+    raw_val = data.get("compensation_value")
+    compensation_value = None
+    if raw_val is not None and raw_val != "":
+        try:
+            compensation_value = float(raw_val)
+        except (TypeError, ValueError):
+            return "compensation_value must be a number", None
+    deadline = parse_date(data.get("application_deadline"))
+    return None, {
+        "company_id": company_id,
+        "job_title": job_title,
+        "role_type": role_type,
+        "department": department,
+        "compensation_value": compensation_value,
+        "compensation_kind": kind,
+        "application_deadline": deadline,
+    }
+
+
+def _vacancies_active_only(q):
+    today = date.today()
+    return q.filter(or_(Vacancy.application_deadline.is_(None), Vacancy.application_deadline >= today))
+
+
+def _vacancy_rows_to_json(rows, include_my_application=False, include_company_name=False):
+    """Serialize vacancy rows; optionally attach current user's application and company name."""
+    uid = g.current_user.id
+    apps_by_vid = {}
+    if include_my_application and rows:
+        vids = [v.id for v in rows]
+        for a in Application.query.filter(Application.user_id == uid, Application.vacancy_id.in_(vids)).all():
+            apps_by_vid[a.vacancy_id] = a
+    out = []
+    for v in rows:
+        d = v.to_dict()
+        if include_company_name and v.company:
+            d["company_name"] = v.company.name
+        if include_my_application:
+            a = apps_by_vid.get(v.id)
+            d["my_application"] = (
+                {
+                    "id": a.id,
+                    "status": a.status,
+                    "status_label": Application.STATUS_LABELS.get(a.status, a.status),
+                }
+                if a
+                else None
+            )
+        out.append(d)
+    return out
+
+
+@app.route("/api/vacancies")
+@token_required
+def vacancies_board():
+    """All companies: browse vacancies (students see active postings only)."""
+    role = current_user_role()
+    role_type = (request.args.get("role_type") or "").strip().lower()
+    active_only = request.args.get("active_only", "1").strip().lower() not in ("0", "false", "no")
+    if role != "admin":
+        active_only = True
+    q = Vacancy.query.options(joinedload(Vacancy.company))
+    if active_only:
+        q = _vacancies_active_only(q)
+    if role_type in Vacancy.ROLE_TYPES:
+        q = q.filter(Vacancy.role_type == role_type)
+    rows = q.order_by(Vacancy.created_at.desc()).all()
+    include_my = role == "student"
+    items = _vacancy_rows_to_json(rows, include_my_application=include_my, include_company_name=True)
+    return jsonify({"items": items})
+
+
+@app.route("/api/companies/<int:company_id>/vacancies")
+@token_required
+def vacancies_list(company_id):
+    company = db.session.get(Company, company_id)
+    if not company:
+        return jsonify({"error": "Company not found"}), 404
+    q = Vacancy.query.filter_by(company_id=company_id).options(joinedload(Vacancy.company))
+    role = current_user_role()
+    if role == "student":
+        q = _vacancies_active_only(q)
+    rows = q.order_by(Vacancy.created_at.desc()).all()
+    include_my = role == "student"
+    items = _vacancy_rows_to_json(rows, include_my_application=include_my, include_company_name=False)
+    return jsonify({"items": items})
+
+
+@app.route("/api/companies/<int:company_id>/vacancies", methods=["POST"])
+@admin_required
+def vacancies_create(company_id):
+    if not db.session.get(Company, company_id):
+        return jsonify({"error": "Company not found"}), 404
+    err, fields = _vacancy_from_payload(request.get_json() or {}, company_id)
+    if err:
+        return jsonify({"error": err}), 400
+    v = Vacancy(**fields)
+    db.session.add(v)
+    try:
+        db.session.commit()
+        return jsonify(v.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/vacancies/<int:vacancy_id>", methods=["PUT"])
+@admin_required
+def vacancies_update(vacancy_id):
+    v = db.session.get(Vacancy, vacancy_id)
+    if not v:
+        return jsonify({"error": "Vacancy not found"}), 404
+    err, fields = _vacancy_from_payload(request.get_json() or {}, v.company_id)
+    if err:
+        return jsonify({"error": err}), 400
+    for key, val in fields.items():
+        setattr(v, key, val)
+    try:
+        db.session.commit()
+        return jsonify(v.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/vacancies/<int:vacancy_id>", methods=["DELETE"])
+@admin_required
+def vacancies_delete(vacancy_id):
+    v = db.session.get(Vacancy, vacancy_id)
+    if not v:
+        return jsonify({"error": "Vacancy not found"}), 404
+    db.session.delete(v)
+    try:
+        db.session.commit()
+        return jsonify({"message": "Vacancy deleted"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/vacancies/<int:vacancy_id>/applications", methods=["POST"])
+@token_required
+def vacancy_submit_application(vacancy_id):
+    if current_user_role() != "student":
+        return jsonify({"error": "Students only"}), 403
+    if not g.current_user.student_id:
+        return jsonify({"error": "Student profile is not linked to this account."}), 400
+    v = db.session.get(Vacancy, vacancy_id)
+    if not v:
+        return jsonify({"error": "Vacancy not found"}), 404
+    today = date.today()
+    if v.application_deadline is not None and v.application_deadline < today:
+        return jsonify({"error": "This vacancy is no longer accepting applications."}), 400
+    if Application.query.filter_by(user_id=g.current_user.id, vacancy_id=vacancy_id).first():
+        return jsonify({"error": "You have already applied for this vacancy."}), 409
+    row = Application(user_id=g.current_user.id, vacancy_id=vacancy_id, status="applied")
+    db.session.add(row)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "You have already applied for this vacancy."}), 409
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+    loaded = (
+        Application.query.options(joinedload(Application.vacancy).joinedload(Vacancy.company))
+        .filter_by(id=row.id)
+        .first()
+    )
+    return jsonify(loaded.to_dict(include_vacancy=True)), 201
+
+
+@app.route("/api/me/applications")
+@token_required
+def me_applications_list():
+    if current_user_role() != "student":
+        return jsonify({"error": "Students only"}), 403
+    rows = (
+        Application.query.options(joinedload(Application.vacancy).joinedload(Vacancy.company))
+        .filter_by(user_id=g.current_user.id)
+        .order_by(Application.application_date.desc())
+        .all()
+    )
+    return jsonify({"items": [r.to_dict(include_vacancy=True) for r in rows]})
+
+
+@app.route("/api/applications/<int:application_id>", methods=["PATCH"])
+@admin_required
+def application_update_status(application_id):
+    row = db.session.get(Application, application_id)
+    if not row:
+        return jsonify({"error": "Application not found"}), 404
+    data = request.get_json() or {}
+    st = (data.get("status") or "").strip().lower()
+    if st not in Application.STATUSES:
+        return jsonify({"error": f"status must be one of: {', '.join(Application.STATUSES)}"}), 400
+    row.status = st
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+    loaded = (
+        Application.query.options(joinedload(Application.vacancy).joinedload(Vacancy.company))
+        .filter_by(id=application_id)
+        .first()
+    )
+    return jsonify(loaded.to_dict(include_vacancy=True))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1943,6 +2171,26 @@ def _ensure_notifications_table():
         print("PlaceTrack: notifications schema check:", ex)
 
 
+def _ensure_vacancies_table():
+    try:
+        inspector = sa_inspect(db.engine)
+        if "vacancies" not in inspector.get_table_names():
+            Vacancy.__table__.create(db.engine, checkfirst=True)
+            print("PlaceTrack: created missing table 'vacancies'")
+    except Exception as ex:
+        print("PlaceTrack: vacancies schema check:", ex)
+
+
+def _ensure_vacancy_applications_table():
+    try:
+        inspector = sa_inspect(db.engine)
+        if "vacancy_applications" not in inspector.get_table_names():
+            Application.__table__.create(db.engine, checkfirst=True)
+            print("PlaceTrack: created missing table 'vacancy_applications'")
+    except Exception as ex:
+        print("PlaceTrack: vacancy_applications schema check:", ex)
+
+
 def _ensure_students_course_column():
     inspector = sa_inspect(db.engine)
     students_table = next((t for t in inspector.get_table_names() if t.lower() == "students"), None)
@@ -1962,6 +2210,8 @@ def _ensure_db_schema():
     db.create_all()
     _ensure_appeals_table()
     _ensure_notifications_table()
+    _ensure_vacancies_table()
+    _ensure_vacancy_applications_table()
     _ensure_users_password_reset_columns()
     _ensure_users_notification_ack_at_column()
     _ensure_students_course_column()

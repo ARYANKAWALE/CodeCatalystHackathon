@@ -1,5 +1,6 @@
 const CLASS_MAP = {
   applied: 'badge-applied',
+  under_review: 'badge-shortlisted',
   selected: 'badge-selected',
   shortlisted: 'badge-shortlisted',
   interview_scheduled: 'badge-interview-scheduled',

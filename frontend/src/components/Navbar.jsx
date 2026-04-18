@@ -47,6 +47,12 @@ export default function Navbar({ children }) {
     ...(isAdmin ? [{ to: '/students', icon: 'bi-people-fill', label: 'Students' }] : []),
     ...(isStudent ? [{ to: profilePath, icon: 'bi-person-badge', label: 'My profile' }] : []),
     { to: '/companies', icon: 'bi-building', label: 'Companies' },
+    ...(isStudent
+      ? [
+          { to: '/vacancies', icon: 'bi-grid-3x3-gap', label: 'Open roles' },
+          { to: '/my-applications', icon: 'bi-inboxes-fill', label: 'My applications' },
+        ]
+      : []),
     {
       to: '/internships',
       icon: 'bi-briefcase-fill',

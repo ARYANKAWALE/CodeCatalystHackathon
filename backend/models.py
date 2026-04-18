@@ -1,5 +1,6 @@
 from datetime import datetime, date
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import UniqueConstraint
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
@@ -115,6 +116,12 @@ class User(db.Model):
     notification_ack_at = db.Column(db.DateTime, nullable=True)
 
     student = db.relationship("Student", backref="user_account", uselist=False)
+    applications = db.relationship(
+        "Application",
+        back_populates="user",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+    )
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -189,6 +196,7 @@ class Company(db.Model):
     internships = db.relationship("Internship", backref="company", lazy=True, cascade="all, delete-orphan")
     placements = db.relationship("Placement", backref="company", lazy=True, cascade="all, delete-orphan")
     appeals = db.relationship("Appeal", backref="company", lazy=True, cascade="all, delete-orphan")
+    vacancies = db.relationship("Vacancy", backref="company", lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self, include_relations=False):
         d = {
@@ -206,6 +214,90 @@ class Company(db.Model):
         if include_relations:
             d["internships"] = [i.to_dict() for i in self.internships]
             d["placements"] = [p.to_dict() for p in self.placements]
+        return d
+
+
+class Vacancy(db.Model):
+    """Open role at a company (admin-managed; not exposed on public company payloads)."""
+
+    __tablename__ = "vacancies"
+    ROLE_TYPES = ("internship", "full_time")
+    COMPENSATION_KINDS = ("lpa", "monthly_inr")
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False)
+    job_title = db.Column(db.String(150), nullable=False)
+    role_type = db.Column(db.String(20), nullable=False)
+    department = db.Column(db.String(100), nullable=False, default="")
+    compensation_value = db.Column(db.Float, nullable=True)
+    compensation_kind = db.Column(db.String(20), nullable=False, default="lpa")
+    application_deadline = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    applications = db.relationship(
+        "Application",
+        back_populates="vacancy",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "company_id": self.company_id,
+            "job_title": self.job_title,
+            "role_type": self.role_type,
+            "department": self.department,
+            "compensation_value": self.compensation_value,
+            "compensation_kind": self.compensation_kind,
+            "application_deadline": self.application_deadline.isoformat() if self.application_deadline else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class Application(db.Model):
+    """Links a student user account to a vacancy (one application per user per vacancy)."""
+
+    __tablename__ = "vacancy_applications"
+    __table_args__ = (
+        UniqueConstraint("user_id", "vacancy_id", name="uq_vacancy_application_user_vacancy"),
+    )
+
+    STATUSES = ("applied", "under_review", "selected", "rejected")
+    STATUS_LABELS = {
+        "applied": "Applied",
+        "under_review": "Under Review",
+        "selected": "Selected",
+        "rejected": "Rejected",
+    }
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    vacancy_id = db.Column(db.Integer, db.ForeignKey("vacancies.id", ondelete="CASCADE"), nullable=False)
+    application_date = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="applied")
+
+    user = db.relationship("User", back_populates="applications")
+    vacancy = db.relationship("Vacancy", back_populates="applications")
+
+    def to_dict(self, include_vacancy=False):
+        d = {
+            "id": self.id,
+            "user_id": self.user_id,
+            "vacancy_id": self.vacancy_id,
+            "application_date": self.application_date.isoformat() if self.application_date else None,
+            "status": self.status,
+            "status_label": self.STATUS_LABELS.get(self.status, self.status),
+        }
+        if include_vacancy and self.vacancy:
+            vd = self.vacancy.to_dict()
+            co = self.vacancy.company
+            if co:
+                vd["company_name"] = co.name
+                vd["company_id"] = self.vacancy.company_id
+            d["vacancy"] = vd
         return d
 
 

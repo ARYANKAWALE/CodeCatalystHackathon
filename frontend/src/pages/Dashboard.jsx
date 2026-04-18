@@ -73,6 +73,9 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [vacApps, setVacApps] = useState([]);
+  const [vacAppsLoading, setVacAppsLoading] = useState(false);
+  const [vacAppsErr, setVacAppsErr] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +107,31 @@ export default function Dashboard() {
     })();
     return () => { cancelled = true; };
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!data || data.type !== 'student' || !user?.student_id) {
+      setVacApps([]);
+      setVacAppsErr('');
+      setVacAppsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setVacAppsLoading(true);
+      try {
+        const r = await api.get('/me/applications');
+        if (!cancelled) {
+          setVacApps(r.items || []);
+          setVacAppsErr('');
+        }
+      } catch (e) {
+        if (!cancelled) setVacAppsErr(getErrorMessage(e, 'Could not load vacancy applications'));
+      } finally {
+        if (!cancelled) setVacAppsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [data, user?.student_id]);
 
   if (loading) {
     return (
@@ -213,10 +241,53 @@ export default function Dashboard() {
         <div className="d-flex flex-wrap gap-2 mb-4">
           <Link to="/appeals/new" className="btn btn-primary btn-sm">New request to company</Link>
           <Link to="/appeals" className="btn btn-outline-secondary btn-sm">My requests</Link>
+          <Link to="/vacancies" className="btn btn-outline-secondary btn-sm">Open roles</Link>
+          <Link to="/my-applications" className="btn btn-outline-secondary btn-sm">My applications</Link>
           <Link to="/reports/me" className="btn btn-outline-secondary btn-sm">My report</Link>
           <Link to={user?.student_id != null ? `/students/${user.student_id}` : '/my-profile'} className="btn btn-outline-secondary btn-sm">
             My profile
           </Link>
+        </div>
+
+        <div className="table-container mb-4">
+          <div className="card-header border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span>Vacancy applications</span>
+            <Link to="/my-applications" className="small">View all</Link>
+          </div>
+          {vacAppsErr ? (
+            <div className="alert alert-warning mb-0 rounded-0 border-0">{vacAppsErr}</div>
+          ) : vacAppsLoading ? (
+            <div className="text-center text-muted py-3">Loading applications…</div>
+          ) : vacApps.length === 0 ? (
+            <div className="text-muted py-3 px-3 mb-0">
+              You have not applied to any posted roles yet.{' '}
+              <Link to="/vacancies">Browse open roles</Link>.
+            </div>
+          ) : (
+            <div className="table-responsive">
+              <table className="table mb-0">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vacApps.slice(0, 5).map((a) => {
+                    const v = a.vacancy || {};
+                    return (
+                      <tr key={a.id}>
+                        <td>{fmt(v.company_name)}</td>
+                        <td>{fmt(v.job_title)}</td>
+                        <td><StatusBadge status={a.status} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="row g-4">
