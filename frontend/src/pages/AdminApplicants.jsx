@@ -1,9 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { getErrorMessage } from '../utils/errorMessage';
 import StatusBadge from '../components/StatusBadge';
 import { fmt, fmtDate, vacancyRoleLabel } from '../utils/vacancyFormat';
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'applied', label: 'Applied' },
+  { value: 'under_review', label: 'Under review' },
+  { value: 'shortlisted', label: 'Shortlisted' },
+  { value: 'selected', label: 'Selected' },
+  { value: 'rejected', label: 'Rejected' },
+];
 
 function linkHref(urlOrPath) {
   if (!urlOrPath || typeof urlOrPath !== 'string') return null;
@@ -14,10 +23,23 @@ function linkHref(urlOrPath) {
   return null;
 }
 
+function previewText(value, max = 84) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (text.length <= max) return text;
+  return `${text.slice(0, max).trimEnd()}...`;
+}
+
+function countStatuses(items, allowed) {
+  return items.filter((item) => allowed.includes(item.status)).length;
+}
+
 export default function AdminApplicants() {
   const [searchParams, setSearchParams] = useSearchParams();
   const companyIdParam = searchParams.get('company_id') || '';
   const vacancyIdParam = searchParams.get('vacancy_id') || '';
+  const statusParam = searchParams.get('status') || '';
+  const queryParam = (searchParams.get('q') || '').trim();
 
   const [companies, setCompanies] = useState([]);
   const [vacancies, setVacancies] = useState([]);
@@ -25,7 +47,12 @@ export default function AdminApplicants() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
+  const [draftQuery, setDraftQuery] = useState(queryParam);
   const [coverModal, setCoverModal] = useState({ open: false, title: '', body: '' });
+
+  useEffect(() => {
+    setDraftQuery(queryParam);
+  }, [queryParam]);
 
   const loadCompanies = useCallback(async () => {
     try {
@@ -36,13 +63,13 @@ export default function AdminApplicants() {
     }
   }, []);
 
-  const loadVacancies = useCallback(async (cid) => {
-    if (!cid) {
+  const loadVacancies = useCallback(async (companyId) => {
+    if (!companyId) {
       setVacancies([]);
       return;
     }
     try {
-      const data = await api.get(`/companies/${cid}/vacancies`);
+      const data = await api.get(`/companies/${companyId}/vacancies`);
       setVacancies(Array.isArray(data?.items) ? data.items : []);
     } catch {
       setVacancies([]);
@@ -54,11 +81,10 @@ export default function AdminApplicants() {
     setError('');
     try {
       const qs = new URLSearchParams();
-      if (vacancyIdParam) {
-        qs.set('vacancy_id', vacancyIdParam);
-      } else if (companyIdParam) {
-        qs.set('company_id', companyIdParam);
-      }
+      if (vacancyIdParam) qs.set('vacancy_id', vacancyIdParam);
+      else if (companyIdParam) qs.set('company_id', companyIdParam);
+      if (statusParam) qs.set('status', statusParam);
+      if (queryParam) qs.set('q', queryParam);
       const suffix = qs.toString() ? `?${qs.toString()}` : '';
       const data = await api.get(`/admin/applications${suffix}`);
       setItems(Array.isArray(data?.items) ? data.items : []);
@@ -68,7 +94,7 @@ export default function AdminApplicants() {
     } finally {
       setLoading(false);
     }
-  }, [companyIdParam, vacancyIdParam]);
+  }, [companyIdParam, vacancyIdParam, statusParam, queryParam]);
 
   useEffect(() => {
     loadCompanies();
@@ -82,29 +108,50 @@ export default function AdminApplicants() {
     loadApplications();
   }, [loadApplications]);
 
-  const setCompanyFilter = (cid) => {
-    const next = new URLSearchParams(searchParams);
-    if (cid) next.set('company_id', cid);
-    else next.delete('company_id');
-    next.delete('vacancy_id');
-    setSearchParams(next, { replace: true });
+  const updateSearchParams = (updates) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      });
+      return next;
+    }, { replace: true });
   };
 
-  const setVacancyFilter = (vid) => {
-    const next = new URLSearchParams(searchParams);
-    if (vid) next.set('vacancy_id', vid);
-    else next.delete('vacancy_id');
-    setSearchParams(next, { replace: true });
+  const setCompanyFilter = (companyId) => {
+    updateSearchParams({
+      company_id: companyId || null,
+      vacancy_id: null,
+    });
+  };
+
+  const setVacancyFilter = (vacancyId) => {
+    updateSearchParams({ vacancy_id: vacancyId || null });
+  };
+
+  const setStatusFilter = (status) => {
+    updateSearchParams({ status: status || null });
+  };
+
+  const applySearch = (e) => {
+    e.preventDefault();
+    updateSearchParams({ q: draftQuery.trim() || null });
+  };
+
+  const clearFilters = () => {
+    setDraftQuery('');
+    setSearchParams(new URLSearchParams(), { replace: true });
   };
 
   const updateStatus = async (row, nextStatus) => {
     if (row.status === nextStatus) return;
     const prevItems = items;
     setUpdatingId(row.id);
-    setItems((list) => list.map((r) => (r.id === row.id ? { ...r, status: nextStatus } : r)));
+    setItems((list) => list.map((entry) => (entry.id === row.id ? { ...entry, status: nextStatus } : entry)));
     try {
       const updated = await api.patch(`/admin/applications/${row.id}/status`, { status: nextStatus });
-      setItems((list) => list.map((r) => (r.id === row.id ? { ...r, ...updated } : r)));
+      setItems((list) => list.map((entry) => (entry.id === row.id ? { ...entry, ...updated } : entry)));
       setError('');
     } catch (e) {
       setItems(prevItems);
@@ -114,16 +161,48 @@ export default function AdminApplicants() {
     }
   };
 
+  const stats = useMemo(() => {
+    const total = items.length;
+    return {
+      total,
+      reviewQueue: countStatuses(items, ['applied', 'under_review']),
+      shortlisted: countStatuses(items, ['shortlisted']),
+      selected: countStatuses(items, ['selected']),
+      rejected: countStatuses(items, ['rejected']),
+    };
+  }, [items]);
+
+  const selectedCompany = useMemo(
+    () => companies.find((company) => String(company.id) === String(companyIdParam)) || null,
+    [companies, companyIdParam],
+  );
+  const selectedVacancy = useMemo(
+    () => vacancies.find((vacancy) => String(vacancy.id) === String(vacancyIdParam)) || null,
+    [vacancies, vacancyIdParam],
+  );
+
+  const hasFilters = Boolean(companyIdParam || vacancyIdParam || statusParam || queryParam);
+  const filterSummary = hasFilters
+    ? [
+        selectedCompany ? `Company: ${selectedCompany.name}` : null,
+        selectedVacancy ? `Vacancy: ${selectedVacancy.job_title}` : null,
+        statusParam ? `Status: ${statusParam.replace(/_/g, ' ')}` : null,
+        queryParam ? `Search: "${queryParam}"` : null,
+      ].filter(Boolean).join(' | ')
+    : 'All companies and vacancies';
+
   return (
-    <div>
+    <div className="admin-applicants-page">
       <header className="page-header d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div>
           <h1>Applicants</h1>
-          <p className="subtitle mb-0">Vacancy applications — review résumés and update status</p>
+          <p className="subtitle mb-0">Vacancy applications - review resumes and update status</p>
         </div>
-        <Link to="/companies" className="btn btn-outline-secondary btn-sm">
-          Companies
-        </Link>
+        <div className="d-flex flex-wrap gap-2">
+          <Link to="/companies" className="btn btn-outline-secondary btn-sm">
+            Companies
+          </Link>
+        </div>
       </header>
 
       {error && (
@@ -132,10 +211,38 @@ export default function AdminApplicants() {
         </div>
       )}
 
+      <div className="admin-applicants-stats mb-4">
+        <div className="admin-applicants-stat-card">
+          <span className="admin-applicants-stat-card__label">Applications</span>
+          <strong className="admin-applicants-stat-card__value">{stats.total}</strong>
+          <span className="admin-applicants-stat-card__meta">matching the active filters</span>
+        </div>
+        <div className="admin-applicants-stat-card">
+          <span className="admin-applicants-stat-card__label">Review queue</span>
+          <strong className="admin-applicants-stat-card__value">{stats.reviewQueue}</strong>
+          <span className="admin-applicants-stat-card__meta">applied or under review</span>
+        </div>
+        <div className="admin-applicants-stat-card">
+          <span className="admin-applicants-stat-card__label">Shortlisted</span>
+          <strong className="admin-applicants-stat-card__value">{stats.shortlisted}</strong>
+          <span className="admin-applicants-stat-card__meta">ready for deeper review</span>
+        </div>
+        <div className="admin-applicants-stat-card">
+          <span className="admin-applicants-stat-card__label">Decisions</span>
+          <strong className="admin-applicants-stat-card__value">{stats.selected + stats.rejected}</strong>
+          <span className="admin-applicants-stat-card__meta">
+            {stats.selected} selected / {stats.rejected} rejected
+          </span>
+        </div>
+      </div>
+
       <div className="table-container mb-4">
-        <div className="card-header border-bottom">Filters</div>
-        <div className="p-3 row g-3">
-          <div className="col-md-5">
+        <div className="card-header border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <span>Filters</span>
+          <span className="small text-muted">{filterSummary}</span>
+        </div>
+        <form className="p-3 admin-applicants-filters__grid" onSubmit={applySearch}>
+          <div className="admin-applicants-filters__field">
             <label className="form-label small text-muted mb-1" htmlFor="adm-app-company">
               Company
             </label>
@@ -146,16 +253,17 @@ export default function AdminApplicants() {
               onChange={(e) => setCompanyFilter(e.target.value)}
             >
               <option value="">All companies</option>
-              {companies.map((c) => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.name}
+              {companies.map((company) => (
+                <option key={company.id} value={String(company.id)}>
+                  {company.name}
                 </option>
               ))}
             </select>
           </div>
-          <div className="col-md-5">
+
+          <div className="admin-applicants-filters__field">
             <label className="form-label small text-muted mb-1" htmlFor="adm-app-vacancy">
-              Vacancy (optional)
+              Vacancy
             </label>
             <select
               id="adm-app-vacancy"
@@ -164,20 +272,63 @@ export default function AdminApplicants() {
               onChange={(e) => setVacancyFilter(e.target.value)}
               disabled={!companyIdParam}
             >
-              <option value="">All vacancies {companyIdParam ? 'for this company' : ''}</option>
-              {vacancies.map((v) => (
-                <option key={v.id} value={String(v.id)}>
-                  {v.job_title}
+              <option value="">All vacancies</option>
+              {vacancies.map((vacancy) => (
+                <option key={vacancy.id} value={String(vacancy.id)}>
+                  {vacancy.job_title}
                 </option>
               ))}
             </select>
           </div>
-          <div className="col-md-2 d-flex align-items-end">
-            <button type="button" className="btn btn-outline-primary btn-sm w-100" onClick={() => loadApplications()}>
+
+          <div className="admin-applicants-filters__field">
+            <label className="form-label small text-muted mb-1" htmlFor="adm-app-status">
+              Status
+            </label>
+            <select
+              id="adm-app-status"
+              className="form-select form-select-sm"
+              value={statusParam}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value || 'all'} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="admin-applicants-filters__field admin-applicants-filters__field--search">
+            <label className="form-label small text-muted mb-1" htmlFor="adm-app-search">
+              Search
+            </label>
+            <div className="input-group input-group-sm">
+              <span className="input-group-text">
+                <i className="bi bi-search" aria-hidden />
+              </span>
+              <input
+                id="adm-app-search"
+                className="form-control"
+                value={draftQuery}
+                onChange={(e) => setDraftQuery(e.target.value)}
+                placeholder="Student, roll number, company, role, or email"
+              />
+            </div>
+          </div>
+
+          <div className="admin-applicants-filters__actions">
+            <button type="submit" className="btn btn-primary btn-sm">
+              Apply
+            </button>
+            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={clearFilters}>
+              Clear
+            </button>
+            <button type="button" className="btn btn-outline-primary btn-sm" onClick={loadApplications}>
               Refresh
             </button>
           </div>
-        </div>
+        </form>
       </div>
 
       <div className="table-container">
@@ -186,10 +337,10 @@ export default function AdminApplicants() {
             <thead>
               <tr>
                 <th>Student</th>
-                <th>Role (vacancy)</th>
+                <th>Role</th>
                 <th>Company</th>
                 <th>Applied</th>
-                <th>Résumé</th>
+                <th>Resume</th>
                 <th>Portfolio</th>
                 <th>Status</th>
                 <th>Cover letter</th>
@@ -201,111 +352,120 @@ export default function AdminApplicants() {
                 <tr>
                   <td colSpan={9} className="text-center text-muted py-4">
                     <span className="spinner-border spinner-border-sm me-2" role="status" />
-                    Loading…
+                    Loading...
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="text-muted text-center py-4">
-                    No applications match the current filters.
+                    {hasFilters ? 'No applications match the current filters.' : 'No applications have been submitted yet.'}
                   </td>
                 </tr>
               ) : (
-                items.map((a) => {
-                  const v = a.vacancy || {};
-                  const st = a.student || {};
-                  const resumeHrefVal = linkHref(a.resume);
-                  const portHref = linkHref(a.portfolio_link);
-                  const busy = updatingId === a.id;
+                items.map((application) => {
+                  const vacancy = application.vacancy || {};
+                  const student = application.student || {};
+                  const resumeHref = linkHref(application.resume);
+                  const portfolioHref = linkHref(application.portfolio_link);
+                  const coverLetter = (application.cover_letter || '').trim();
+                  const busy = updatingId === application.id;
+
                   return (
-                    <tr key={a.id}>
+                    <tr key={application.id}>
                       <td>
-                        <div className="fw-medium">{fmt(st.name)}</div>
-                        <div className="small text-muted">{fmt(st.roll_number)}</div>
-                        {st.id != null && (
-                          <Link to={`/students/${st.id}`} className="small">
+                        <div className="fw-medium">{fmt(student.name)}</div>
+                        <div className="small text-muted">{fmt(student.roll_number)}</div>
+                        {student.email ? <div className="small text-muted">{student.email}</div> : null}
+                        {student.id != null && (
+                          <Link to={`/students/${student.id}`} className="small">
                             Profile
                           </Link>
                         )}
                       </td>
                       <td>
-                        <div>{fmt(v.job_title)}</div>
-                        <div className="small text-muted">{vacancyRoleLabel(v.role_type)}</div>
+                        <div>{fmt(vacancy.job_title)}</div>
+                        <div className="small text-muted">{vacancyRoleLabel(vacancy.role_type)}</div>
+                        {vacancy.department ? (
+                          <div className="small text-muted">Dept: {fmt(vacancy.department)}</div>
+                        ) : null}
                       </td>
                       <td>
-                        {v.company_id ? (
-                          <Link to={`/companies/${v.company_id}`}>{fmt(v.company_name)}</Link>
+                        {vacancy.company_id ? (
+                          <Link to={`/companies/${vacancy.company_id}`}>{fmt(vacancy.company_name)}</Link>
                         ) : (
-                          fmt(v.company_name)
+                          fmt(vacancy.company_name)
                         )}
                       </td>
-                      <td>{fmtDate(a.application_date)}</td>
+                      <td>{fmtDate(application.application_date)}</td>
                       <td>
-                        {resumeHrefVal ? (
-                          <a href={resumeHrefVal} target="_blank" rel="noopener noreferrer">
-                            Open résumé
+                        {resumeHref ? (
+                          <a href={resumeHref} target="_blank" rel="noopener noreferrer">
+                            Resume
                           </a>
                         ) : (
-                          '—'
+                          '-'
                         )}
                       </td>
                       <td>
-                        {portHref ? (
-                          <a href={portHref} target="_blank" rel="noopener noreferrer">
-                            Open
+                        {portfolioHref ? (
+                          <a href={portfolioHref} target="_blank" rel="noopener noreferrer">
+                            Portfolio
                           </a>
                         ) : (
-                          '—'
+                          '-'
                         )}
                       </td>
                       <td>
-                        <StatusBadge status={a.status} />
+                        <StatusBadge status={application.status} />
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="btn btn-link btn-sm p-0"
-                          onClick={() =>
-                            setCoverModal({
-                              open: true,
-                              title: `${fmt(st.name)} — ${fmt(v.job_title)}`,
-                              body: (a.cover_letter || '').trim() || '—',
-                            })
-                          }
-                        >
-                          View
-                        </button>
-                      </td>
-                      <td className="text-end text-nowrap">
-                        <div className="btn-group btn-group-sm flex-wrap justify-content-end">
+                        {coverLetter ? (
                           <button
                             type="button"
-                            className="btn btn-outline-primary"
-                            disabled={busy}
-                            onClick={() => updateStatus(a, 'shortlisted')}
-                            title="Shortlist"
+                            className="btn btn-link btn-sm p-0 admin-applicants-cover-btn"
+                            onClick={() =>
+                              setCoverModal({
+                                open: true,
+                                title: `${fmt(student.name)} - ${fmt(vacancy.job_title)}`,
+                                body: coverLetter,
+                              })
+                            }
+                          >
+                            <span className="admin-applicants-cover-btn__preview">{previewText(coverLetter)}</span>
+                            <span className="admin-applicants-cover-btn__link">View full note</span>
+                          </button>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td className="text-end">
+                        <div className="admin-application-actions">
+                          <button
+                            type="button"
+                            className={`btn btn-sm btn-outline-primary${application.status === 'shortlisted' ? ' is-active' : ''}`}
+                            disabled={busy || application.status === 'shortlisted'}
+                            onClick={() => updateStatus(application, 'shortlisted')}
                           >
                             Shortlist
                           </button>
                           <button
                             type="button"
-                            className="btn btn-outline-success"
-                            disabled={busy}
-                            onClick={() => updateStatus(a, 'selected')}
-                            title="Select"
+                            className={`btn btn-sm btn-outline-success${application.status === 'selected' ? ' is-active' : ''}`}
+                            disabled={busy || application.status === 'selected'}
+                            onClick={() => updateStatus(application, 'selected')}
                           >
                             Select
                           </button>
                           <button
                             type="button"
-                            className="btn btn-outline-danger"
-                            disabled={busy}
-                            onClick={() => updateStatus(a, 'rejected')}
-                            title="Reject"
+                            className={`btn btn-sm btn-outline-danger${application.status === 'rejected' ? ' is-active' : ''}`}
+                            disabled={busy || application.status === 'rejected'}
+                            onClick={() => updateStatus(application, 'rejected')}
                           >
                             Reject
                           </button>
                         </div>
+                        {busy ? <div className="small text-muted mt-2">Updating...</div> : null}
                       </td>
                     </tr>
                   );

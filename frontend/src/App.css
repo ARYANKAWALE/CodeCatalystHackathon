@@ -2539,3 +2539,298 @@ code { color: var(--primary-light); background: var(--primary-bg); padding: .15e
   height: 1px;
   background: var(--border);
 }
+
+/* ============================================================
+   COMPANY DIRECTORY / APPLICANTS / STUDENT PROFILE OVERRIDES
+   ============================================================ */
+.directory-stat-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1rem 1.1rem;
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.directory-stat-card__label,
+.admin-applicants-stat-card__label,
+.student-identity-card__eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.directory-stat-card__value,
+.admin-applicants-stat-card__value {
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+
+.directory-stat-card__value--small {
+  font-size: 1.1rem;
+}
+
+.directory-stat-card__meta,
+.admin-applicants-stat-card__meta {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.company-directory-filters__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(220px, .8fr) auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.company-directory-filters__field,
+.admin-applicants-filters__field {
+  min-width: 0;
+}
+
+.company-directory-filters__field--search .input-group-text,
+.admin-applicants-filters__field--search .input-group-text {
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.company-directory-filters__actions,
+.admin-applicants-filters__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+.company-directory__name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.company-directory__name {
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.company-directory__name:hover {
+  color: var(--primary);
+}
+
+.company-directory__meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  max-width: 28rem;
+}
+
+.company-directory__contact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.company-directory__contact a {
+  font-size: 0.82rem;
+  word-break: break-word;
+}
+
+.company-directory__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  min-width: 15rem;
+}
+
+.admin-applicants-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-applicants-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.admin-applicants-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-height: 100%;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  box-shadow: var(--shadow);
+}
+
+.admin-applicants-filters__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.admin-applicants-cover-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.18rem;
+  text-align: left;
+  text-decoration: none;
+}
+
+.admin-applicants-cover-btn__preview {
+  max-width: 15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+}
+
+.admin-applicants-cover-btn__link {
+  font-size: 0.75rem;
+}
+
+.admin-application-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  min-width: 15rem;
+}
+
+.admin-application-actions .btn {
+  white-space: nowrap;
+}
+
+.admin-application-actions .btn.is-active {
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 6px 16px var(--primary-glow);
+}
+
+.admin-application-actions .btn-outline-primary.is-active {
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+}
+
+.admin-application-actions .btn-outline-success.is-active {
+  background: linear-gradient(135deg, #059669, var(--success));
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.22);
+}
+
+.admin-application-actions .btn-outline-danger.is-active {
+  background: linear-gradient(135deg, #dc2626, var(--danger));
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.22);
+}
+
+.student-identity-card__topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  margin-bottom: 1.15rem;
+}
+
+.student-identity-card__admin-actions {
+  position: static;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.student-identity-card__body {
+  padding-top: 1.35rem;
+}
+
+.student-identity-card__viz {
+  padding: 1rem 1rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  min-width: 10rem;
+}
+
+.student-identity-card__viz-label {
+  margin-bottom: 0.65rem;
+  text-align: center;
+}
+
+@media (max-width: 991.98px) {
+  .company-directory-filters__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .company-directory-filters__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .admin-applicants-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-applicants-filters__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-applicants-filters__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .company-directory__actions,
+  .admin-application-actions {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .company-directory__actions {
+    justify-content: flex-start;
+  }
+
+  .admin-applicants-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-applicants-filters__grid,
+  .company-directory-filters__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-application-actions {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+}
+
+@media (max-width: 576px) {
+  .student-identity-card__topbar {
+    margin-bottom: 0.9rem;
+  }
+
+  .student-identity-card__admin-actions {
+    justify-content: flex-start;
+  }
+
+  .student-identity-card__viz {
+    width: 100%;
+    min-width: 0;
+    padding: 0.85rem 0.85rem 0.7rem;
+  }
+}

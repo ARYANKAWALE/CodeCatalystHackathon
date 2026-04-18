@@ -864,11 +864,22 @@ def me_resume_patch():
 def companies_list():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 15, type=int)
-    industry = request.args.get("industry", "")
+    industry = (request.args.get("industry") or "").strip()
+    search = (request.args.get("q") or "").strip()
 
     q = Company.query
     if industry:
         q = q.filter_by(industry=industry)
+    if search:
+        like = f"%{search}%"
+        q = q.filter(
+            db.or_(
+                Company.name.ilike(like),
+                Company.industry.ilike(like),
+                Company.contact_person.ilike(like),
+                Company.contact_email.ilike(like),
+            )
+        )
 
     pag = q.order_by(Company.name).paginate(page=page, per_page=per_page, error_out=False)
     industries = [r[0] for r in db.session.query(Company.industry).distinct().order_by(Company.industry).all() if r[0]]
@@ -1236,15 +1247,36 @@ def admin_applications_list():
     """All vacancy applications with student + vacancy + company (optional filters)."""
     company_id = request.args.get("company_id", type=int)
     vacancy_id = request.args.get("vacancy_id", type=int)
+    status = (request.args.get("status") or "").strip().lower()
+    search = (request.args.get("q") or "").strip()
     q = Application.query.options(
         joinedload(Application.vacancy).joinedload(Vacancy.company),
         joinedload(Application.user).joinedload(User.student),
-    )
+    ).join(Vacancy, Application.vacancy_id == Vacancy.id)
+    if search or company_id:
+        q = q.outerjoin(Company, Vacancy.company_id == Company.id)
+    if search:
+        q = q.outerjoin(User, Application.user_id == User.id).outerjoin(Student, User.student_id == Student.id)
     if vacancy_id:
         q = q.filter(Application.vacancy_id == vacancy_id)
-    elif company_id:
-        q = q.join(Vacancy).filter(Vacancy.company_id == company_id)
-    rows = q.order_by(Application.application_date.desc()).limit(500).all()
+    if company_id:
+        q = q.filter(Vacancy.company_id == company_id)
+    if status in Application.STATUSES:
+        q = q.filter(Application.status == status)
+    if search:
+        like = f"%{search}%"
+        q = q.filter(
+            db.or_(
+                Vacancy.job_title.ilike(like),
+                Vacancy.department.ilike(like),
+                Company.name.ilike(like),
+                Student.name.ilike(like),
+                Student.roll_number.ilike(like),
+                User.username.ilike(like),
+                User.email.ilike(like),
+            )
+        )
+    rows = q.order_by(Application.application_date.desc()).limit(500).distinct().all()
     return jsonify({
         "items": [r.to_dict(include_vacancy=True, include_student=True) for r in rows],
     })

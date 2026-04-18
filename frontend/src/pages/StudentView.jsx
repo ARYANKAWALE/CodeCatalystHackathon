@@ -9,16 +9,16 @@ import IdentityResumeField from '../components/IdentityResumeField';
 import ProfileTableEmpty from '../components/ProfileTableEmpty';
 import { parseSkillTags } from '../utils/skillsParse';
 
-function fmt(v) {
-  if (v === null || v === undefined || v === '') return '—';
-  return v;
+function fmt(value) {
+  if (value === null || value === undefined || value === '') return '-';
+  return value;
 }
 
 function fmtDateRange(start, end) {
-  const a = start ? start : '—';
-  const b = end ? end : '—';
-  if (a === '—' && b === '—') return '—';
-  return `${a} → ${b}`;
+  const from = start || '-';
+  const to = end || '-';
+  if (from === '-' && to === '-') return '-';
+  return `${from} -> ${to}`;
 }
 
 function initialsFromName(name) {
@@ -48,9 +48,9 @@ export default function StudentView() {
     (async () => {
       setLoading(true);
       try {
-        const s = await api.get(`/students/${id}`);
+        const response = await api.get(`/students/${id}`);
         if (!cancelled) {
-          setStudent(s);
+          setStudent(response);
           setError('');
         }
       } catch (e) {
@@ -83,7 +83,7 @@ export default function StudentView() {
     return (
       <div className="d-flex justify-content-center align-items-center py-5">
         <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading…</span>
+          <span className="visually-hidden">Loading...</span>
         </div>
       </div>
     );
@@ -119,18 +119,21 @@ export default function StudentView() {
       ) : null}
 
       <div className="student-identity-card card border-0 shadow-sm mb-4">
-        {isAdmin ? (
-          <div className="student-identity-card__admin-actions">
-            <Link to={`/students/${id}/edit`} className="btn btn-primary btn-sm">
-              Edit
-            </Link>
-            <button type="button" className="btn btn-outline-danger btn-sm" onClick={handleDelete}>
-              Delete
-            </button>
-          </div>
-        ) : null}
-
         <div className="card-body student-identity-card__body">
+          <div className="student-identity-card__topbar">
+            <div className="student-identity-card__eyebrow">Profile overview</div>
+            {isAdmin ? (
+              <div className="student-identity-card__admin-actions">
+                <Link to={`/students/${id}/edit`} className="btn btn-primary btn-sm">
+                  Edit
+                </Link>
+                <button type="button" className="btn btn-outline-danger btn-sm" onClick={handleDelete}>
+                  Delete
+                </button>
+              </div>
+            ) : null}
+          </div>
+
           <div className="student-identity-card__layout">
             <div className="student-identity-card__identity-row">
               <div className="student-identity-card__avatar" aria-hidden>
@@ -140,7 +143,7 @@ export default function StudentView() {
                 <h2 className="student-identity-card__name">{fmt(student.name)}</h2>
                 <p className="student-identity-card__meta text-muted mb-2">
                   {fmt(student.roll_number)}
-                  {student.department ? ` · ${fmt(student.department)}` : ''}
+                  {student.department ? ` | ${fmt(student.department)}` : ''}
                 </p>
                 <p className="student-identity-card__course student-identity-card__course--clamp mb-0">
                   {student.course ? fmt(student.course) : <span className="text-muted">Course / program not set</span>}
@@ -176,6 +179,7 @@ export default function StudentView() {
             </div>
 
             <div className="student-identity-card__viz">
+              <span className="student-identity-card__section-label student-identity-card__viz-label">Academic score</span>
               <CgpaRing cgpa={student.cgpa} size={104} stroke={7} />
             </div>
 
@@ -206,11 +210,8 @@ export default function StudentView() {
                     ))}
                   </div>
                 ) : isOwnProfile ? (
-                  <Link
-                    to={`/students/${id}/edit`}
-                    className="student-skills-empty student-skills-empty--action"
-                  >
-                    + Add your top skills (e.g. React, Node.js)
+                  <Link to={`/students/${id}/edit`} className="student-skills-empty student-skills-empty--action">
+                    + Add your top skills (for example React, Node.js)
                   </Link>
                 ) : (
                   <div className="student-skills-empty">No skills listed</div>
@@ -235,11 +236,11 @@ export default function StudentView() {
             </div>
             <div className="student-kv-row">
               <dt>Year</dt>
-              <dd>{student.year != null ? String(student.year) : '—'}</dd>
+              <dd>{student.year != null ? String(student.year) : '-'}</dd>
             </div>
             <div className="student-kv-row student-kv-row--last">
               <dt>CGPA</dt>
-              <dd>{student.cgpa != null ? Number(student.cgpa).toFixed(2) : '—'}</dd>
+              <dd>{student.cgpa != null ? Number(student.cgpa).toFixed(2) : '-'}</dd>
             </div>
           </dl>
         </div>
@@ -251,11 +252,7 @@ export default function StudentView() {
             <div className="student-profile-table__head card-header border-0">
               <h3 className="student-profile-table__title h6 mb-0">Internships</h3>
               {showTableActions ? (
-                <Link
-                  to={internAddHref}
-                  className="btn btn-sm student-profile-table__add-btn"
-                  title="Add internship"
-                >
+                <Link to={internAddHref} className="btn btn-sm student-profile-table__add-btn" title="Add internship">
                   <i className="bi bi-plus-lg" aria-hidden />
                   <span className="d-none d-sm-inline ms-1">Add new</span>
                 </Link>
@@ -279,28 +276,25 @@ export default function StudentView() {
                   {internships.length === 0 ? (
                     <ProfileTableEmpty variant="internships" isAdmin={isAdmin} studentId={id} colSpan={6} />
                   ) : (
-                    internships.map((i) => (
-                      <tr key={i.id} className="student-profile-table__row">
+                    internships.map((internship) => (
+                      <tr key={internship.id} className="student-profile-table__row">
                         <td className="student-profile-table__cell student-profile-table__cell--primary">
-                          {fmt(i.title)}
+                          {fmt(internship.title)}
                         </td>
                         <td className="student-profile-table__cell student-profile-table__cell--primary">
-                          {fmt(i.company_name)}
+                          {fmt(internship.company_name)}
                         </td>
                         <td className="student-profile-table__cell student-profile-table__cell--muted">
-                          {fmtDateRange(i.start_date, i.end_date)}
+                          {fmtDateRange(internship.start_date, internship.end_date)}
                         </td>
                         <td className="student-profile-table__cell student-profile-table__cell--muted">
-                          {i.stipend != null ? i.stipend : '—'}
+                          {internship.stipend != null ? internship.stipend : '-'}
                         </td>
                         <td>
-                          <StatusBadge status={i.status} />
+                          <StatusBadge status={internship.status} />
                         </td>
                         <td>
-                          <Link
-                            to={`/internships/${i.id}`}
-                            className="student-profile-table__row-link"
-                          >
+                          <Link to={`/internships/${internship.id}`} className="student-profile-table__row-link">
                             View
                           </Link>
                         </td>
@@ -312,16 +306,13 @@ export default function StudentView() {
             </div>
           </div>
         </div>
+
         <div className="col-lg-6">
           <div className="table-container student-profile-table">
             <div className="student-profile-table__head card-header border-0">
               <h3 className="student-profile-table__title h6 mb-0">Placements</h3>
               {showTableActions ? (
-                <Link
-                  to={placementAddHref}
-                  className="btn btn-sm student-profile-table__add-btn"
-                  title="Add placement"
-                >
+                <Link to={placementAddHref} className="btn btn-sm student-profile-table__add-btn" title="Add placement">
                   <i className="bi bi-plus-lg" aria-hidden />
                   <span className="d-none d-sm-inline ms-1">Add new</span>
                 </Link>
@@ -344,25 +335,22 @@ export default function StudentView() {
                   {placements.length === 0 ? (
                     <ProfileTableEmpty variant="placements" isAdmin={isAdmin} studentId={id} colSpan={5} />
                   ) : (
-                    placements.map((p) => (
-                      <tr key={p.id} className="student-profile-table__row">
+                    placements.map((placement) => (
+                      <tr key={placement.id} className="student-profile-table__row">
                         <td className="student-profile-table__cell student-profile-table__cell--primary">
-                          {fmt(p.role)}
+                          {fmt(placement.role)}
                         </td>
                         <td className="student-profile-table__cell student-profile-table__cell--primary">
-                          {fmt(p.company_name)}
+                          {fmt(placement.company_name)}
                         </td>
                         <td className="student-profile-table__cell student-profile-table__cell--muted">
-                          {p.package_lpa != null ? `${p.package_lpa} LPA` : '—'}
+                          {placement.package_lpa != null ? `${placement.package_lpa} LPA` : '-'}
                         </td>
                         <td>
-                          <StatusBadge status={p.status} />
+                          <StatusBadge status={placement.status} />
                         </td>
                         <td>
-                          <Link
-                            to={`/placements/${p.id}`}
-                            className="student-profile-table__row-link"
-                          >
+                          <Link to={`/placements/${placement.id}`} className="student-profile-table__row-link">
                             View
                           </Link>
                         </td>
