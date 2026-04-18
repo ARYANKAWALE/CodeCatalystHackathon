@@ -3,7 +3,13 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
-import { fmt, fmtDate, vacancyRoleLabel, vacancyCompensation } from '../utils/vacancyFormat';
+import {
+  fmt,
+  fmtDate,
+  vacancyRoleLabel,
+  vacancyCompensation,
+  vacancyDeadlinePassed,
+} from '../utils/vacancyFormat';
 
 export default function VacancyBoard() {
   const { user, loading: authLoading } = useAuth();
@@ -25,7 +31,6 @@ export default function VacancyBoard() {
       setLoading(true);
       try {
         const qs = new URLSearchParams();
-        qs.set('active_only', '1');
         if (roleFilter === 'internship' || roleFilter === 'full_time') {
           qs.set('role_type', roleFilter);
         }
@@ -47,7 +52,6 @@ export default function VacancyBoard() {
 
   const refetch = async () => {
     const qs = new URLSearchParams();
-    qs.set('active_only', '1');
     if (roleFilter === 'internship' || roleFilter === 'full_time') {
       qs.set('role_type', roleFilter);
     }
@@ -96,7 +100,9 @@ export default function VacancyBoard() {
       <header className="page-header d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div>
           <h1>Open roles</h1>
-          <p className="subtitle mb-0">Active vacancies across companies</p>
+          <p className="subtitle mb-0">
+            Posted roles across companies. Past deadlines stay visible; applying is only allowed before the deadline.
+          </p>
         </div>
         {isStudentViewer && (
           <Link to="/my-applications" className="btn btn-outline-primary btn-sm">
@@ -161,7 +167,7 @@ export default function VacancyBoard() {
               {items.length === 0 ? (
                 <tr>
                   <td colSpan={isStudentViewer ? 7 : 6} className="text-muted text-center py-4">
-                    No open vacancies match this filter
+                    No vacancies match this filter
                   </td>
                 </tr>
               ) : (
@@ -185,6 +191,10 @@ export default function VacancyBoard() {
                           v.my_application ? (
                             <button type="button" className="btn btn-secondary btn-sm" disabled>
                               Applied
+                            </button>
+                          ) : vacancyDeadlinePassed(v) ? (
+                            <button type="button" className="btn btn-outline-secondary btn-sm" disabled title="Deadline has passed">
+                              Closed
                             </button>
                           ) : (
                             <button

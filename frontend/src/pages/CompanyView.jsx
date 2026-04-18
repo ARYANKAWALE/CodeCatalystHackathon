@@ -4,7 +4,13 @@ import { api } from '../api';
 import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
-import { fmt, fmtDate, vacancyRoleLabel, vacancyCompensation } from '../utils/vacancyFormat';
+import {
+  fmt,
+  fmtDate,
+  vacancyRoleLabel,
+  vacancyCompensation,
+  vacancyDeadlinePassed,
+} from '../utils/vacancyFormat';
 
 function websiteHref(url) {
   if (!url || !String(url).trim()) return null;
@@ -403,7 +409,7 @@ export default function CompanyView() {
         <div className="mt-4">
           <div className="table-container">
             <div className="card-header border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
-              <span>Active vacancies</span>
+              <span>Vacancies</span>
               {isAdmin && (
                 <button type="button" className="btn btn-primary btn-sm" onClick={openNewVacancyModal}>
                   Add new vacancy
@@ -434,7 +440,7 @@ export default function CompanyView() {
                     {vacancies.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="text-muted text-center py-4">
-                          {isStudentViewer ? 'No open vacancies for this company right now' : 'No open vacancies recorded'}
+                          {isStudentViewer ? 'No vacancies recorded for this company' : 'No vacancies recorded'}
                         </td>
                       </tr>
                     ) : (
@@ -469,6 +475,15 @@ export default function CompanyView() {
                                 v.my_application ? (
                                   <button type="button" className="btn btn-secondary btn-sm" disabled>
                                     Applied
+                                  </button>
+                                ) : vacancyDeadlinePassed(v) ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline-secondary btn-sm"
+                                    disabled
+                                    title="Deadline has passed"
+                                  >
+                                    Closed
                                   </button>
                                 ) : (
                                   <button

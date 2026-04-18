@@ -24,3 +24,17 @@ export function vacancyCompensation(v) {
   }
   return `${n} LPA`;
 }
+
+/** True if application_deadline is strictly before today (local calendar). No deadline => still open. */
+export function vacancyDeadlinePassed(v) {
+  const raw = v?.application_deadline;
+  if (raw == null || raw === '') return false;
+  const deadline = String(raw).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return false;
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const today = `${y}-${m}-${d}`;
+  return deadline < today;
+}

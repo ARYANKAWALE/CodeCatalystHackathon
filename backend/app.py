@@ -945,12 +945,10 @@ def _vacancy_rows_to_json(rows, include_my_application=False, include_company_na
 @app.route("/api/vacancies")
 @token_required
 def vacancies_board():
-    """All companies: browse vacancies (students see active postings only)."""
+    """All companies: browse vacancies. Use active_only=1 to hide past deadlines (optional)."""
     role = current_user_role()
     role_type = (request.args.get("role_type") or "").strip().lower()
-    active_only = request.args.get("active_only", "1").strip().lower() not in ("0", "false", "no")
-    if role != "admin":
-        active_only = True
+    active_only = request.args.get("active_only", "0").strip().lower() in ("1", "true", "yes")
     q = Vacancy.query.options(joinedload(Vacancy.company))
     if active_only:
         q = _vacancies_active_only(q)
@@ -970,7 +968,8 @@ def vacancies_list(company_id):
         return jsonify({"error": "Company not found"}), 404
     q = Vacancy.query.filter_by(company_id=company_id).options(joinedload(Vacancy.company))
     role = current_user_role()
-    if role == "student":
+    active_only = request.args.get("active_only", "0").strip().lower() in ("1", "true", "yes")
+    if active_only:
         q = _vacancies_active_only(q)
     rows = q.order_by(Vacancy.created_at.desc()).all()
     include_my = role == "student"
