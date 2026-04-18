@@ -1205,9 +1205,7 @@ def me_applications_list():
     return jsonify({"items": [r.to_dict(include_vacancy=True) for r in rows]})
 
 
-@app.route("/api/applications/<int:application_id>", methods=["PATCH"])
-@admin_required
-def application_update_status(application_id):
+def _admin_set_application_status_response(application_id):
     row = db.session.get(Application, application_id)
     if not row:
         return jsonify({"error": "Application not found"}), 404
@@ -1222,11 +1220,46 @@ def application_update_status(application_id):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
     loaded = (
-        Application.query.options(joinedload(Application.vacancy).joinedload(Vacancy.company))
+        Application.query.options(
+            joinedload(Application.vacancy).joinedload(Vacancy.company),
+            joinedload(Application.user).joinedload(User.student),
+        )
         .filter_by(id=application_id)
         .first()
     )
-    return jsonify(loaded.to_dict(include_vacancy=True))
+    return jsonify(loaded.to_dict(include_vacancy=True, include_student=True))
+
+
+@app.route("/api/admin/applications", methods=["GET"])
+@admin_required
+def admin_applications_list():
+    """All vacancy applications with student + vacancy + company (optional filters)."""
+    company_id = request.args.get("company_id", type=int)
+    vacancy_id = request.args.get("vacancy_id", type=int)
+    q = Application.query.options(
+        joinedload(Application.vacancy).joinedload(Vacancy.company),
+        joinedload(Application.user).joinedload(User.student),
+    )
+    if vacancy_id:
+        q = q.filter(Application.vacancy_id == vacancy_id)
+    elif company_id:
+        q = q.join(Vacancy).filter(Vacancy.company_id == company_id)
+    rows = q.order_by(Application.application_date.desc()).limit(500).all()
+    return jsonify({
+        "items": [r.to_dict(include_vacancy=True, include_student=True) for r in rows],
+    })
+
+
+@app.route("/api/admin/applications/<int:application_id>/status", methods=["PATCH"])
+@admin_required
+def admin_application_status_patch(application_id):
+    return _admin_set_application_status_response(application_id)
+
+
+@app.route("/api/applications/<int:application_id>", methods=["PATCH"])
+@admin_required
+def application_update_status(application_id):
+    return _admin_set_application_status_response(application_id)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

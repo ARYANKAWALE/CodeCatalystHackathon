@@ -296,6 +296,9 @@ export default function CompanyView() {
           )}
           {isAdmin && (
             <>
+              <Link to={`/admin/applications?company_id=${id}`} className="btn btn-outline-primary btn-sm">
+                Applicants
+              </Link>
               <Link to={`/companies/${id}/edit`} className="btn btn-primary btn-sm">
                 Edit
               </Link>

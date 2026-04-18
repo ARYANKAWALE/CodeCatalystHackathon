@@ -265,10 +265,11 @@ class Application(db.Model):
         UniqueConstraint("user_id", "vacancy_id", name="uq_vacancy_application_user_vacancy"),
     )
 
-    STATUSES = ("applied", "under_review", "selected", "rejected")
+    STATUSES = ("applied", "under_review", "shortlisted", "selected", "rejected")
     STATUS_LABELS = {
         "applied": "Applied",
         "under_review": "Under Review",
+        "shortlisted": "Shortlisted",
         "selected": "Selected",
         "rejected": "Rejected",
     }
@@ -286,7 +287,7 @@ class Application(db.Model):
     user = db.relationship("User", back_populates="applications")
     vacancy = db.relationship("Vacancy", back_populates="applications")
 
-    def to_dict(self, include_vacancy=False):
+    def to_dict(self, include_vacancy=False, include_student=False):
         d = {
             "id": self.id,
             "user_id": self.user_id,
@@ -305,6 +306,25 @@ class Application(db.Model):
                 vd["company_name"] = co.name
                 vd["company_id"] = self.vacancy.company_id
             d["vacancy"] = vd
+        if include_student:
+            u = self.user
+            stu = u.student if u else None
+            if stu:
+                d["student"] = {
+                    "id": stu.id,
+                    "name": stu.name,
+                    "roll_number": stu.roll_number,
+                    "email": stu.email,
+                }
+            elif u:
+                d["student"] = {
+                    "id": None,
+                    "name": (u.username or "").strip() or "—",
+                    "roll_number": None,
+                    "email": u.email or "",
+                }
+            else:
+                d["student"] = None
         return d
 
 

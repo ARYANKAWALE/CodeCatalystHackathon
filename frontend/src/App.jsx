@@ -35,6 +35,7 @@ import MyReports from './pages/MyReports';
 import MyProfile from './pages/MyProfile';
 import VacancyBoard from './pages/VacancyBoard';
 import MyApplications from './pages/MyApplications';
+import AdminApplicants from './pages/AdminApplicants';
 
 function P({ children }) {
   return <ProtectedRoute>{children}</ProtectedRoute>;
@@ -89,6 +90,7 @@ function AppLayout() {
           <Route path="/reports/internship-summary" element={<P><AdminRoute><InternshipSummary /></AdminRoute></P>} />
           <Route path="/reports/company-wise" element={<P><AdminRoute><CompanyWiseReport /></AdminRoute></P>} />
           <Route path="/reports/me" element={<P><MyReports /></P>} />
+          <Route path="/admin/applications" element={<P><AdminRoute><AdminApplicants /></AdminRoute></P>} />
           <Route path="/appeals" element={<P><AppealList /></P>} />
           <Route path="/appeals/new" element={<P><AppealForm /></P>} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

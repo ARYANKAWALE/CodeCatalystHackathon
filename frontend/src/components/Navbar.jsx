@@ -65,6 +65,7 @@ export default function Navbar({ children }) {
     },
     ...(isAdmin
       ? [
+          { to: '/admin/applications', icon: 'bi-person-lines-fill', label: 'Applicants' },
           { to: '/reports/analytics', icon: 'bi-pie-chart-fill', label: 'Analytics' },
           { to: '/reports', icon: 'bi-file-earmark-bar-graph-fill', label: 'Reports', end: true },
           { to: '/appeals', icon: 'bi-inbox-fill', label: 'Appeals' },
