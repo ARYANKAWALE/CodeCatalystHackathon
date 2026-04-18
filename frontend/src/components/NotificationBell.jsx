@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { getErrorMessage } from '../utils/errorMessage';
+import { NotificationLinkedList, createAsyncQueue } from '../utils/notificationList';
 
 function notificationTypeClass(kind) {
   const k = String(kind || 'general').toLowerCase();
@@ -31,6 +32,8 @@ export default function NotificationBell({ className = '' }) {
   const [loading, setLoading] = useState(false);
   const [bannerError, setBannerError] = useState('');
   const rootRef = useRef(null);
+  const listRef = useRef(new NotificationLinkedList());
+  const opQueueRef = useRef(createAsyncQueue());
 
   const refreshCount = useCallback(async () => {
     try {
@@ -46,8 +49,12 @@ export default function NotificationBell({ className = '' }) {
     setBannerError('');
     try {
       const data = await api.get('/notifications?limit=30');
-      setItems(Array.isArray(data?.items) ? data.items : []);
+      const arr = Array.isArray(data?.items) ? data.items : [];
+      listRef.current.fromServerList(arr);
+      listRef.current.trim(30);
+      setItems(listRef.current.toArray());
     } catch (e) {
+      listRef.current.clear();
       setItems([]);
       setBannerError(getErrorMessage(e, 'Could not load notifications'));
     } finally {
@@ -91,31 +98,37 @@ export default function NotificationBell({ className = '' }) {
     };
   }, [open, loadList, refreshCount]);
 
-  const markAllRead = async () => {
-    try {
-      setBannerError('');
-      await api.post('/notifications/read-all', {});
-      setItems((prev) => prev.map((n) => ({ ...n, read: true })));
-      await refreshCount();
-    } catch (e) {
-      setBannerError(getErrorMessage(e, 'Could not mark all as read'));
-    }
+  const markAllRead = () => {
+    opQueueRef.current(async () => {
+      try {
+        setBannerError('');
+        await api.post('/notifications/read-all', {});
+        listRef.current.markAllRead();
+        setItems(listRef.current.toArray());
+        await refreshCount();
+      } catch (e) {
+        setBannerError(getErrorMessage(e, 'Could not mark all as read'));
+      }
+    });
   };
 
-  const onItemClick = async (n) => {
-    try {
-      setBannerError('');
-      if (!n.read) {
-        await api.patch(`/notifications/${n.id}/read`, {});
-        setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
-        await refreshCount();
+  const onItemClick = (n) => {
+    opQueueRef.current(async () => {
+      try {
+        setBannerError('');
+        if (!n.read) {
+          await api.patch(`/notifications/${n.id}/read`, {});
+          listRef.current.updateById(n.id, { read: true });
+          setItems(listRef.current.toArray());
+          await refreshCount();
+        }
+      } catch (e) {
+        setBannerError(getErrorMessage(e, 'Could not update notification'));
+        return;
       }
-    } catch (e) {
-      setBannerError(getErrorMessage(e, 'Could not update notification'));
-      return;
-    }
-    setOpen(false);
-    if (n.link) navigate(n.link);
+      setOpen(false);
+      if (n.link) navigate(n.link);
+    });
   };
 
   return (

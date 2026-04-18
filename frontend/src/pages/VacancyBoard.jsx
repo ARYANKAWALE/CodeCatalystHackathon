@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { getErrorMessage } from '../utils/errorMessage';
@@ -18,7 +18,7 @@ export default function VacancyBoard() {
   const isStudentViewer = role === 'student' && !isAdmin;
   const isStudent = isStudentViewer && user?.student_id != null;
 
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -30,13 +30,9 @@ export default function VacancyBoard() {
     (async () => {
       setLoading(true);
       try {
-        const qs = new URLSearchParams();
-        if (roleFilter === 'internship' || roleFilter === 'full_time') {
-          qs.set('role_type', roleFilter);
-        }
-        const data = await api.get(`/vacancies?${qs.toString()}`);
+        const data = await api.get('/vacancies');
         if (!cancelled) {
-          setItems(data.items || []);
+          setAllItems(data.items || []);
           setError('');
         }
       } catch (e) {
@@ -48,22 +44,25 @@ export default function VacancyBoard() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, roleFilter]);
+  }, [authLoading]);
+
+  const items = useMemo(() => {
+    if (roleFilter !== 'internship' && roleFilter !== 'full_time') {
+      return allItems;
+    }
+    return allItems.filter((v) => v.role_type === roleFilter);
+  }, [allItems, roleFilter]);
 
   const refetch = async () => {
-    const qs = new URLSearchParams();
-    if (roleFilter === 'internship' || roleFilter === 'full_time') {
-      qs.set('role_type', roleFilter);
-    }
-    const data = await api.get(`/vacancies?${qs.toString()}`);
-    setItems(data.items || []);
+    const data = await api.get('/vacancies');
+    setAllItems(data.items || []);
   };
 
   const handleApply = async (v) => {
     setApplyingId(v.id);
     try {
       const created = await api.post(`/vacancies/${v.id}/applications`, {});
-      setItems((prev) =>
+      setAllItems((prev) =>
         prev.map((row) =>
           row.id === v.id
             ? {
@@ -167,7 +166,9 @@ export default function VacancyBoard() {
               {items.length === 0 ? (
                 <tr>
                   <td colSpan={isStudentViewer ? 7 : 6} className="text-muted text-center py-4">
-                    No vacancies match this filter
+                    {allItems.length === 0
+                      ? 'No vacancies have been posted yet'
+                      : 'No vacancies match this filter'}
                   </td>
                 </tr>
               ) : (
