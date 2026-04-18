@@ -14,6 +14,14 @@ import { parseSkillTags } from '../utils/skillsParse';
 
 ChartJS.register(ArcElement, Tooltip);
 
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return { text: 'Good morning', emoji: '☀️' };
+  if (h < 17) return { text: 'Good afternoon', emoji: '🌤️' };
+  if (h < 21) return { text: 'Good evening', emoji: '🌆' };
+  return { text: 'Good night', emoji: '🌙' };
+}
+
 /** Donut/legend colors (keys match Placement.STATUSES); unknown → slate */
 const PLACEMENT_STATUS_COLORS = {
   applied: '#1e3a5f',
@@ -162,8 +170,11 @@ export default function Dashboard() {
       <div>
         <header className="page-header d-flex justify-content-between align-items-center w-100">
           <div>
-            <h1>My dashboard</h1>
-            <p className="subtitle">Signed in as {user?.username}</p>
+            <div className="greeting-header">
+              <span className="greeting-emoji" aria-hidden>{getGreeting().emoji}</span>
+              <h1>{getGreeting().text}, {s.name?.split(' ')[0] || user?.username}</h1>
+            </div>
+            <p className="subtitle">Here's your placement journey overview</p>
           </div>
           <div className="flex-shrink-0 d-none d-md-block">
             <NotificationBell />
@@ -238,14 +249,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="d-flex flex-wrap gap-2 mb-4">
-          <Link to="/appeals/new" className="btn btn-primary btn-sm">New request to company</Link>
-          <Link to="/appeals" className="btn btn-outline-secondary btn-sm">My requests</Link>
-          <Link to="/vacancies" className="btn btn-outline-secondary btn-sm">Open roles</Link>
-          <Link to="/my-applications" className="btn btn-outline-secondary btn-sm">My applications</Link>
-          <Link to="/reports/me" className="btn btn-outline-secondary btn-sm">My report</Link>
-          <Link to={user?.student_id != null ? `/students/${user.student_id}` : '/my-profile'} className="btn btn-outline-secondary btn-sm">
-            My profile
+        <div className="quick-actions">
+          <Link to="/appeals/new" className="quick-action-btn"><i className="bi bi-plus-circle" aria-hidden />New request</Link>
+          <Link to="/vacancies" className="quick-action-btn"><i className="bi bi-briefcase" aria-hidden />Open roles</Link>
+          <Link to="/my-applications" className="quick-action-btn"><i className="bi bi-send" aria-hidden />My applications</Link>
+          <Link to="/appeals" className="quick-action-btn"><i className="bi bi-chat-dots" aria-hidden />My requests</Link>
+          <Link to="/reports/me" className="quick-action-btn"><i className="bi bi-file-earmark-bar-graph" aria-hidden />My report</Link>
+          <Link to={user?.student_id != null ? `/students/${user.student_id}` : '/my-profile'} className="quick-action-btn">
+            <i className="bi bi-person" aria-hidden />My profile
           </Link>
         </div>
 
@@ -467,8 +478,11 @@ function AdminDashboard({ data, doughnutOptions }) {
       <div className="admin-dashboard-page">
         <header className="page-header d-flex justify-content-between align-items-center w-100">
           <div>
-            <h1>Admin dashboard</h1>
-            <p className="subtitle">Overview and recent activity</p>
+            <div className="greeting-header">
+              <span className="greeting-emoji" aria-hidden>{getGreeting().emoji}</span>
+              <h1>{getGreeting().text}, Admin</h1>
+            </div>
+            <p className="subtitle">Here's what's happening across your institution</p>
           </div>
           <div className="flex-shrink-0 d-none d-md-block">
             <NotificationBell />

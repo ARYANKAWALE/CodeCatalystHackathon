@@ -16,6 +16,7 @@ import {
   toIndiaE164,
 } from '../utils/phoneIndia';
 import { getErrorMessage } from '../utils/errorMessage';
+import AnimatedBackground from '../components/AnimatedBackground';
 
 export default function Register() {
   const { user, loading, register } = useAuth();
@@ -79,11 +80,13 @@ export default function Register() {
 
   return (
     <div className="auth-page">
+      <AnimatedBackground variant="auth" />
+
       <button className="theme-toggle position-fixed" style={{ top: '1.5rem', right: '1.5rem', zIndex: 10 }} onClick={toggle}>
         <i className={`bi ${dark ? 'bi-sun-fill' : 'bi-moon-fill'}`} />
       </button>
 
-      <div className="auth-card fade-in" style={{ maxWidth: 560 }}>
+      <div className="auth-card" style={{ maxWidth: 560 }}>
         <div className="text-center mb-4">
           <div className="brand-icon mx-auto mb-3" style={{ width: 52, height: 52, fontSize: '1.4rem' }}>
             <i className="bi bi-mortarboard-fill" />

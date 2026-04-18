@@ -3,6 +3,7 @@ import { Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { getErrorMessage } from '../utils/errorMessage';
+import AnimatedBackground from '../components/AnimatedBackground';
 
 export default function Login() {
   const { user, loading, login } = useAuth();
@@ -35,11 +36,13 @@ export default function Login() {
 
   return (
     <div className="auth-page">
+      <AnimatedBackground variant="auth" />
+
       <button className="theme-toggle position-fixed" style={{ top: '1.5rem', right: '1.5rem', zIndex: 10 }} onClick={toggle}>
         <i className={`bi ${dark ? 'bi-sun-fill' : 'bi-moon-fill'}`} />
       </button>
 
-      <div className="auth-card fade-in">
+      <div className="auth-card">
         <div className="text-center mb-4">
           <div className="brand-icon mx-auto mb-3" style={{ width: 52, height: 52, fontSize: '1.4rem' }}>
             <i className="bi bi-mortarboard-fill" />

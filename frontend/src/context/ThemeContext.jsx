@@ -16,6 +16,18 @@ export function ThemeProvider({ children }) {
     localStorage.setItem('theme', mode);
   }, [dark]);
 
+  // Listen for OS theme changes and auto-switch
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e) => {
+      // Only auto-switch if the user hasn't explicitly set a preference
+      const saved = localStorage.getItem('theme');
+      if (!saved) setDark(e.matches);
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   const toggle = () => setDark((d) => !d);
 
   return (
