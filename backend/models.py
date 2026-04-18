@@ -278,6 +278,10 @@ class Application(db.Model):
     vacancy_id = db.Column(db.Integer, db.ForeignKey("vacancies.id", ondelete="CASCADE"), nullable=False)
     application_date = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     status = db.Column(db.String(20), nullable=False, default="applied")
+    # Required for new applications: https URL or uploaded file path under /api/uploads/...
+    resume = db.Column(db.String(2048), nullable=False, default="")
+    cover_letter = db.Column(db.Text, nullable=True)
+    portfolio_link = db.Column(db.String(2048), nullable=True)
 
     user = db.relationship("User", back_populates="applications")
     vacancy = db.relationship("Vacancy", back_populates="applications")
@@ -290,6 +294,9 @@ class Application(db.Model):
             "application_date": self.application_date.isoformat() if self.application_date else None,
             "status": self.status,
             "status_label": self.STATUS_LABELS.get(self.status, self.status),
+            "resume": self.resume or "",
+            "cover_letter": self.cover_letter or "",
+            "portfolio_link": self.portfolio_link or "",
         }
         if include_vacancy and self.vacancy:
             vd = self.vacancy.to_dict()

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
+import VacancyApplyModal from '../components/VacancyApplyModal';
 import {
   fmt,
   fmtDate,
@@ -22,7 +23,8 @@ export default function VacancyBoard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  const [applyingId, setApplyingId] = useState(null);
+  const [applyTarget, setApplyTarget] = useState(null);
+  const [toast, setToast] = useState('');
 
   useEffect(() => {
     if (authLoading) return;
@@ -58,30 +60,29 @@ export default function VacancyBoard() {
     setAllItems(data.items || []);
   };
 
-  const handleApply = async (v) => {
-    setApplyingId(v.id);
-    try {
-      const created = await api.post(`/vacancies/${v.id}/applications`, {});
-      setAllItems((prev) =>
-        prev.map((row) =>
-          row.id === v.id
-            ? {
-                ...row,
-                my_application: {
-                  id: created.id,
-                  status: created.status,
-                  status_label: created.status_label,
-                },
-              }
-            : row,
-        ),
-      );
-      setError('');
-    } catch (e) {
-      setError(getErrorMessage(e, 'Could not submit application'));
-    } finally {
-      setApplyingId(null);
-    }
+  useEffect(() => {
+    if (!toast) return undefined;
+    const t = setTimeout(() => setToast(''), 4500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const onApplicationSubmitted = (v, created) => {
+    setAllItems((prev) =>
+      prev.map((row) =>
+        row.id === v.id
+          ? {
+              ...row,
+              my_application: {
+                id: created.id,
+                status: created.status,
+                status_label: created.status_label,
+              },
+            }
+          : row,
+      ),
+    );
+    setError('');
+    setToast('Application submitted successfully.');
   };
 
   if (authLoading || loading) {
@@ -96,6 +97,33 @@ export default function VacancyBoard() {
 
   return (
     <div>
+      {toast && (
+        <div
+          className="toast-container position-fixed top-0 end-0 p-3"
+          style={{ zIndex: 1085 }}
+          aria-live="polite"
+        >
+          <div className="toast show text-bg-success border-0 shadow" role="status">
+            <div className="d-flex align-items-center">
+              <div className="toast-body py-2">{toast}</div>
+              <button
+                type="button"
+                className="btn-close btn-close-white me-2 m-auto"
+                aria-label="Dismiss"
+                onClick={() => setToast('')}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <VacancyApplyModal
+        vacancy={applyTarget}
+        open={Boolean(applyTarget)}
+        onClose={() => setApplyTarget(null)}
+        onApplied={(created) => applyTarget && onApplicationSubmitted(applyTarget, created)}
+      />
+
       <header className="page-header d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div>
           <h1>Open roles</h1>
@@ -201,10 +229,9 @@ export default function VacancyBoard() {
                             <button
                               type="button"
                               className="btn btn-primary btn-sm"
-                              disabled={applyingId === v.id}
-                              onClick={() => handleApply(v)}
+                              onClick={() => setApplyTarget(v)}
                             >
-                              {applyingId === v.id ? 'Applying…' : 'Apply now'}
+                              Apply now
                             </button>
                           )
                         ) : (

@@ -82,7 +82,12 @@ function isAnonymousAuthRequest(url, method) {
 async function apiFetch(url, options = {}) {
   const method = String(options.method || 'GET').toUpperCase();
   const token = isAnonymousAuthRequest(url, method) ? null : getToken();
-  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  const headers = { ...options.headers };
+  if (!(options.body instanceof FormData)) {
+    if (!headers['Content-Type'] && !headers['content-type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+  }
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   let res;
@@ -179,6 +184,8 @@ async function getBlobRequest(url) {
 export const api = {
   get: (url) => request(url),
   post: (url, body) => request(url, { method: 'POST', body: JSON.stringify(body) }),
+  /** multipart/form-data (do not set Content-Type; browser sets boundary) */
+  postForm: (url, formData) => request(url, { method: 'POST', body: formData }),
   put: (url, body) => request(url, { method: 'PUT', body: JSON.stringify(body) }),
   patch: (url, body) => request(url, { method: 'PATCH', body: JSON.stringify(body) }),
   del: (url) => request(url, { method: 'DELETE' }),

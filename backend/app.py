@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import jwt
 from flask import Flask, jsonify, request, send_file, send_from_directory, g
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 from sqlalchemy import false as sql_false, func, inspect as sa_inspect, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
@@ -32,6 +33,8 @@ from notification_templates import (
 from phone_utils import normalize_india_phone
 
 STATIC_FOLDER = os.path.join(os.path.dirname(__file__), "static_frontend")
+APPLICATION_RESUME_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads", "application_resumes")
+MAX_APPLICATION_RESUME_BYTES = 5 * 1024 * 1024  # 5 MB
 
 app = Flask(__name__, static_folder=STATIC_FOLDER, static_url_path="")
 app.config.from_object(Config)
@@ -735,6 +738,97 @@ def _validate_resume_url(link):
     return s, None
 
 
+def _ensure_application_resume_upload_dir():
+    os.makedirs(APPLICATION_RESUME_UPLOAD_DIR, exist_ok=True)
+
+
+def _validate_optional_http_url(link, field_label="Link"):
+    s = (link or "").strip() if isinstance(link, str) else ""
+    if not s:
+        return "", None
+    normalized, err = _validate_resume_url(s)
+    if err:
+        return None, f"{field_label}: {err}"
+    return normalized, None
+
+
+def _save_application_resume_upload(file_storage):
+    """Persist multipart PDF; returns (/api/uploads/application-resumes/<id>.pdf, None) or (None, error)."""
+    if not file_storage or not getattr(file_storage, "filename", None):
+        return None, "Resume PDF is missing."
+    safe = secure_filename(file_storage.filename)
+    if not safe.lower().endswith(".pdf"):
+        return None, "Resume must be a PDF file (.pdf)."
+    blob = file_storage.read()
+    if len(blob) > MAX_APPLICATION_RESUME_BYTES:
+        return None, "Resume file must be 5 MB or smaller."
+    if not blob.startswith(b"%PDF"):
+        return None, "Uploaded file is not a valid PDF."
+    _ensure_application_resume_upload_dir()
+    fname = f"{secrets.token_hex(16)}.pdf"
+    path = os.path.join(APPLICATION_RESUME_UPLOAD_DIR, fname)
+    with open(path, "wb") as out:
+        out.write(blob)
+    return f"/api/uploads/application-resumes/{fname}", None
+
+
+def _parse_vacancy_application_payload():
+    """Multipart (file and/or resume_url) or JSON (resume URL). Returns (dict, None) or (None, error str)."""
+    ct = (request.content_type or "").lower()
+    cover_letter = ""
+    portfolio_norm = ""
+    resume_val = None
+
+    if "multipart/form-data" in ct:
+        cover_letter = (request.form.get("cover_letter") or "").strip()
+        portfolio_raw = (request.form.get("portfolio_link") or "").strip()
+        pn, perr = _validate_optional_http_url(portfolio_raw, "Portfolio link")
+        if perr:
+            return None, perr
+        portfolio_norm = pn
+
+        f = request.files.get("resume")
+        resume_url = (request.form.get("resume_url") or "").strip()
+        if f and getattr(f, "filename", None):
+            resume_val, err = _save_application_resume_upload(f)
+            if err:
+                return None, err
+        elif resume_url:
+            resume_val, err = _validate_resume_url(resume_url)
+            if err:
+                return None, err
+        else:
+            return None, "Provide a resume PDF or a resume_url (HTTPS link to your CV)."
+    else:
+        data = request.get_json(silent=True) or {}
+        cover_letter = (data.get("cover_letter") or "").strip()
+        portfolio_raw = (data.get("portfolio_link") or "").strip()
+        pn, perr = _validate_optional_http_url(portfolio_raw, "Portfolio link")
+        if perr:
+            return None, perr
+        portfolio_norm = pn
+
+        resume_raw = (data.get("resume") or "").strip()
+        if not resume_raw:
+            return None, "resume is required (HTTPS URL to your résumé)."
+        resume_val, err = _validate_resume_url(resume_raw)
+        if err:
+            return None, err
+
+    if len(cover_letter) > 20000:
+        return None, "Cover letter is too long (max 20000 characters)."
+
+    resume_str = (resume_val or "").strip() if resume_val is not None else ""
+    if not resume_str:
+        return None, "Resume is required."
+
+    return {
+        "resume": resume_str,
+        "cover_letter": cover_letter if cover_letter else None,
+        "portfolio_link": portfolio_norm if portfolio_norm else None,
+    }, None
+
+
 @app.route("/api/me/resume", methods=["PATCH"])
 @token_required
 def me_resume_patch():
@@ -1029,6 +1123,31 @@ def vacancies_delete(vacancy_id):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/uploads/application-resumes/<filename>")
+@token_required
+def download_application_resume(filename):
+    """Serve uploaded application PDFs to the owning student or an admin."""
+    if not filename or "/" in filename or "\\" in filename or ".." in filename:
+        return jsonify({"error": "Invalid file"}), 400
+    if not str(filename).lower().endswith(".pdf"):
+        return jsonify({"error": "Invalid file"}), 400
+    _ensure_application_resume_upload_dir()
+    base = os.path.abspath(APPLICATION_RESUME_UPLOAD_DIR)
+    fp = os.path.abspath(os.path.join(APPLICATION_RESUME_UPLOAD_DIR, filename))
+    if not fp.startswith(base) or not os.path.isfile(fp):
+        return jsonify({"error": "Not found"}), 404
+    rel = f"/api/uploads/application-resumes/{filename}"
+    if current_user_role() == "admin":
+        return send_file(fp, mimetype="application/pdf", as_attachment=False, download_name=filename)
+    owner = Application.query.filter(
+        Application.user_id == g.current_user.id,
+        Application.resume == rel,
+    ).first()
+    if not owner:
+        return jsonify({"error": "Forbidden"}), 403
+    return send_file(fp, mimetype="application/pdf", as_attachment=False, download_name=filename)
+
+
 @app.route("/api/vacancies/<int:vacancy_id>/applications", methods=["POST"])
 @token_required
 def vacancy_submit_application(vacancy_id):
@@ -1044,7 +1163,17 @@ def vacancy_submit_application(vacancy_id):
         return jsonify({"error": "This vacancy is no longer accepting applications."}), 400
     if Application.query.filter_by(user_id=g.current_user.id, vacancy_id=vacancy_id).first():
         return jsonify({"error": "You have already applied for this vacancy."}), 409
-    row = Application(user_id=g.current_user.id, vacancy_id=vacancy_id, status="applied")
+    payload, perr = _parse_vacancy_application_payload()
+    if perr:
+        return jsonify({"error": perr}), 400
+    row = Application(
+        user_id=g.current_user.id,
+        vacancy_id=vacancy_id,
+        status="applied",
+        resume=payload["resume"],
+        cover_letter=payload["cover_letter"],
+        portfolio_link=payload["portfolio_link"],
+    )
     db.session.add(row)
     try:
         db.session.commit()
@@ -2190,6 +2319,35 @@ def _ensure_vacancy_applications_table():
         print("PlaceTrack: vacancy_applications schema check:", ex)
 
 
+def _ensure_application_detail_columns():
+    """Add resume / cover_letter / portfolio_link to vacancy_applications on legacy DBs."""
+    try:
+        inspector = sa_inspect(db.engine)
+        tname = next((t for t in inspector.get_table_names() if t.lower() == "vacancy_applications"), None)
+        if not tname:
+            return
+        qtbl = db.engine.dialect.identifier_preparer.quote(tname)
+        col_names = {c["name"].lower() for c in inspector.get_columns(tname)}
+        with db.engine.begin() as conn:
+            if "resume" not in col_names:
+                conn.execute(
+                    text(f"ALTER TABLE {qtbl} ADD COLUMN resume VARCHAR(2048) NOT NULL DEFAULT ''")
+                )
+                print("PlaceTrack: added vacancy_applications.resume")
+                col_names.add("resume")
+            if "cover_letter" not in col_names:
+                ct = "TEXT"
+                conn.execute(text(f"ALTER TABLE {qtbl} ADD COLUMN cover_letter {ct} NULL"))
+                print("PlaceTrack: added vacancy_applications.cover_letter")
+            if "portfolio_link" not in col_names:
+                conn.execute(
+                    text(f"ALTER TABLE {qtbl} ADD COLUMN portfolio_link VARCHAR(2048) NULL")
+                )
+                print("PlaceTrack: added vacancy_applications.portfolio_link")
+    except Exception as ex:
+        print("PlaceTrack: vacancy_applications detail columns:", ex)
+
+
 def _ensure_students_course_column():
     inspector = sa_inspect(db.engine)
     students_table = next((t for t in inspector.get_table_names() if t.lower() == "students"), None)
@@ -2211,6 +2369,8 @@ def _ensure_db_schema():
     _ensure_notifications_table()
     _ensure_vacancies_table()
     _ensure_vacancy_applications_table()
+    _ensure_application_detail_columns()
+    _ensure_application_resume_upload_dir()
     _ensure_users_password_reset_columns()
     _ensure_users_notification_ack_at_column()
     _ensure_students_course_column()

@@ -6,6 +6,15 @@ import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import { fmt, fmtDate, vacancyRoleLabel } from '../utils/vacancyFormat';
 
+function resumeLinkHref(resume) {
+  if (!resume || typeof resume !== 'string') return null;
+  const s = resume.trim();
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith('/')) return s;
+  return null;
+}
+
 export default function MyApplications() {
   const { user, loading: authLoading } = useAuth();
   const role = String(user?.role ?? '').toLowerCase();
@@ -95,13 +104,14 @@ export default function MyApplications() {
                 <th>Role</th>
                 <th>Type</th>
                 <th>Applied</th>
+                <th>Résumé</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-muted text-center py-4">
+                  <td colSpan={6} className="text-muted text-center py-4">
                     You have not applied to any vacancies yet.{' '}
                     <Link to="/vacancies">Browse open roles</Link>.
                   </td>
@@ -122,6 +132,18 @@ export default function MyApplications() {
                       <td>{fmt(v.job_title)}</td>
                       <td>{vacancyRoleLabel(v.role_type)}</td>
                       <td>{fmtDate(a.application_date)}</td>
+                      <td>
+                        {(() => {
+                          const href = resumeLinkHref(a.resume);
+                          return href ? (
+                            <a href={href} target="_blank" rel="noopener noreferrer">
+                              View
+                            </a>
+                          ) : (
+                            '—'
+                          );
+                        })()}
+                      </td>
                       <td>
                         <StatusBadge status={a.status} />
                       </td>

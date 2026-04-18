@@ -4,6 +4,7 @@ import { api } from '../api';
 import { getErrorMessage } from '../utils/errorMessage';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
+import VacancyApplyModal from '../components/VacancyApplyModal';
 import {
   fmt,
   fmtDate,
@@ -47,7 +48,8 @@ export default function CompanyView() {
   const [vacancySaving, setVacancySaving] = useState(false);
   const [editingVacancyId, setEditingVacancyId] = useState(null);
   const [vacancyForm, setVacancyForm] = useState(VACANCY_FORM_EMPTY);
-  const [applyingVacancyId, setApplyingVacancyId] = useState(null);
+  const [applyTarget, setApplyTarget] = useState(null);
+  const [applyToast, setApplyToast] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -180,30 +182,29 @@ export default function CompanyView() {
     }
   };
 
-  const handleApplyVacancy = async (v) => {
-    setApplyingVacancyId(v.id);
-    try {
-      const created = await api.post(`/vacancies/${v.id}/applications`, {});
-      setVacancies((prev) =>
-        prev.map((row) =>
-          row.id === v.id
-            ? {
-                ...row,
-                my_application: {
-                  id: created.id,
-                  status: created.status,
-                  status_label: created.status_label,
-                },
-              }
-            : row,
-        ),
-      );
-      setError('');
-    } catch (e) {
-      setError(getErrorMessage(e, 'Could not submit application'));
-    } finally {
-      setApplyingVacancyId(null);
-    }
+  useEffect(() => {
+    if (!applyToast) return undefined;
+    const t = setTimeout(() => setApplyToast(''), 4500);
+    return () => clearTimeout(t);
+  }, [applyToast]);
+
+  const onVacancyApplicationSubmitted = (v, created) => {
+    setVacancies((prev) =>
+      prev.map((row) =>
+        row.id === v.id
+          ? {
+              ...row,
+              my_application: {
+                id: created.id,
+                status: created.status,
+                status_label: created.status_label,
+              },
+            }
+          : row,
+      ),
+    );
+    setError('');
+    setApplyToast('Application submitted successfully.');
   };
 
   const handleDelete = async () => {
@@ -238,6 +239,33 @@ export default function CompanyView() {
 
   return (
     <div>
+      {applyToast && (
+        <div
+          className="toast-container position-fixed top-0 end-0 p-3"
+          style={{ zIndex: 1085 }}
+          aria-live="polite"
+        >
+          <div className="toast show text-bg-success border-0 shadow" role="status">
+            <div className="d-flex align-items-center">
+              <div className="toast-body py-2">{applyToast}</div>
+              <button
+                type="button"
+                className="btn-close btn-close-white me-2 m-auto"
+                aria-label="Dismiss"
+                onClick={() => setApplyToast('')}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <VacancyApplyModal
+        vacancy={applyTarget}
+        open={Boolean(applyTarget)}
+        onClose={() => setApplyTarget(null)}
+        onApplied={(created) => applyTarget && onVacancyApplicationSubmitted(applyTarget, created)}
+      />
+
       {error && (
         <div className="alert alert-danger" role="alert">
           {error}
@@ -489,10 +517,15 @@ export default function CompanyView() {
                                   <button
                                     type="button"
                                     className="btn btn-primary btn-sm"
-                                    disabled={applyingVacancyId === v.id}
-                                    onClick={() => handleApplyVacancy(v)}
+                                    onClick={() =>
+                                      setApplyTarget({
+                                        ...v,
+                                        company_id: company.id,
+                                        company_name: company.name,
+                                      })
+                                    }
                                   >
-                                    {applyingVacancyId === v.id ? 'Applying…' : 'Apply now'}
+                                    Apply now
                                   </button>
                                 )
                               ) : (
