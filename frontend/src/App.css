@@ -1760,3 +1760,386 @@ code { color: var(--primary-light); background: var(--primary-bg); padding: .15e
   box-shadow: 0 2px 8px var(--primary-glow);
 }
 .quick-action-btn i { font-size: .9rem; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STATUS TIMELINE — Horizontal step indicator
+   ═══════════════════════════════════════════════════════════════════════════ */
+.status-timeline {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 1.25rem 1rem;
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+.status-timeline__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex: 1;
+  min-width: 80px;
+}
+.status-timeline__connector {
+  position: absolute;
+  top: 14px;
+  right: 50%;
+  width: 100%;
+  height: 3px;
+  background: var(--border);
+  z-index: 0;
+  border-radius: 2px;
+}
+.status-timeline__connector.is-filled {
+  background: linear-gradient(90deg, var(--primary), var(--primary-hover));
+}
+.status-timeline__dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .75rem;
+  font-weight: 700;
+  z-index: 1;
+  position: relative;
+  border: 2.5px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-muted);
+  transition: all .3s ease;
+}
+.status-timeline__step.is-completed .status-timeline__dot {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.status-timeline__step.is-active .status-timeline__dot {
+  border-color: var(--primary);
+  background: var(--primary-bg);
+  color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-glow);
+}
+.status-timeline__pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  animation: timelinePulse 1.5s ease-in-out infinite;
+}
+@keyframes timelinePulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.6); opacity: .5; }
+}
+.status-timeline__step.is-upcoming .status-timeline__dot {
+  opacity: .5;
+}
+.status-timeline__label {
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: .5rem;
+  text-align: center;
+  text-transform: capitalize;
+  line-height: 1.2;
+}
+.status-timeline__step.is-active .status-timeline__label {
+  color: var(--primary);
+  font-weight: 700;
+}
+.status-timeline__step.is-completed .status-timeline__label {
+  color: var(--text);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DETAIL STAT CARDS — for InternshipView / PlacementView
+   ═══════════════════════════════════════════════════════════════════════════ */
+.detail-stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.15rem 1rem;
+  text-align: center;
+  transition: var(--transition);
+}
+.detail-stat-card:hover {
+  border-color: var(--primary-glow);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.detail-stat-card--highlight {
+  background: linear-gradient(135deg, var(--primary-bg), var(--card-bg));
+  border-color: var(--primary);
+  border-width: 2px;
+}
+.detail-stat-icon {
+  font-size: 1.3rem;
+  color: var(--primary);
+  margin-bottom: .35rem;
+}
+.detail-stat-label {
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+  margin-bottom: .25rem;
+}
+.detail-stat-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.detail-stat-value--large {
+  font-size: 1.6rem;
+  letter-spacing: -.02em;
+}
+.detail-stat-sub {
+  font-size: .78rem;
+  color: var(--text-muted);
+  margin-top: .15rem;
+}
+.detail-section {
+  margin-top: .75rem;
+}
+
+/* Progress bar inside stat card */
+.detail-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  margin-top: .5rem;
+  overflow: hidden;
+}
+.detail-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), #34d399);
+  border-radius: 3px;
+  transition: width .6s ease;
+}
+
+/* Date chip — relative label badges */
+.date-chip {
+  display: inline-block;
+  font-size: .7rem;
+  font-weight: 600;
+  background: var(--primary-bg);
+  color: var(--primary);
+  padding: .15rem .55rem;
+  border-radius: 99px;
+  margin-left: .5rem;
+  vertical-align: middle;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NOTIFICATION BELL — Enhanced with DSA integration
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Bounce animation on new notification */
+@keyframes bellBounce {
+  0% { transform: rotate(0); }
+  15% { transform: rotate(15deg); }
+  30% { transform: rotate(-12deg); }
+  45% { transform: rotate(8deg); }
+  60% { transform: rotate(-5deg); }
+  75% { transform: rotate(2deg); }
+  100% { transform: rotate(0); }
+}
+.notification-bell-bounce .bi-bell {
+  animation: bellBounce .6s ease;
+}
+
+/* Filter tabs */
+.notification-filter-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--border);
+  border-radius: 6px;
+  padding: 2px;
+}
+.notification-filter-tab {
+  border: none;
+  background: transparent;
+  padding: .2rem .55rem;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.notification-filter-tab.active {
+  background: var(--card-bg);
+  color: var(--primary);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+
+/* Group summary header */
+.notification-group-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  padding: .5rem .75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--primary-bg);
+}
+.notification-group-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: .68rem;
+  font-weight: 600;
+  padding: .15rem .5rem;
+  border-radius: 99px;
+  background: var(--card-bg);
+  color: var(--primary);
+  border: 1px solid var(--primary-glow);
+}
+
+/* Notification item with icon-based layout */
+.notification-item-wrap {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  transition: background .15s ease;
+}
+.notification-item-wrap:hover {
+  background: var(--primary-bg);
+}
+.notification-item-wrap.is-read {
+  opacity: .65;
+}
+.notification-item-wrap .notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: .65rem;
+  width: 100%;
+  padding: .65rem .75rem;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+}
+.notification-item-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: .85rem;
+}
+.notification-item-icon.notification-type--appeal {
+  background: rgba(251, 191, 36, .15);
+  color: #d97706;
+}
+.notification-item-icon.notification-type--internship {
+  background: rgba(59, 130, 246, .15);
+  color: #3b82f6;
+}
+.notification-item-icon.notification-type--placement {
+  background: rgba(16, 185, 129, .15);
+  color: #10b981;
+}
+.notification-item-icon.notification-type--general {
+  background: rgba(148, 163, 184, .15);
+  color: #64748b;
+}
+.notification-item-content {
+  flex: 1;
+  min-width: 0;
+}
+.notification-item-wrap .notification-item-title {
+  font-size: .82rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: .1rem;
+}
+.notification-item-wrap .notification-item-body {
+  font-size: .75rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.notification-item-wrap .notification-item-meta {
+  font-size: .68rem;
+  color: var(--text-muted);
+  margin-top: .2rem;
+}
+.notification-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
+  margin-top: .35rem;
+}
+
+/* Dismiss button */
+.notification-dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s ease, color .15s ease;
+}
+.notification-item-wrap:hover .notification-dismiss {
+  opacity: 1;
+}
+.notification-dismiss:hover {
+  color: var(--danger, #ef4444);
+}
+
+/* Empty state icon */
+.notification-empty-icon {
+  font-size: 2rem;
+  color: var(--text-muted);
+  margin-bottom: .5rem;
+  animation: emptyBellSway 2s ease-in-out infinite;
+}
+@keyframes emptyBellSway {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(5deg); }
+  75% { transform: rotate(-5deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE — StatusTimeline & Detail Cards
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .status-timeline {
+    padding: .75rem .5rem;
+  }
+  .status-timeline__step {
+    min-width: 60px;
+  }
+  .status-timeline__dot {
+    width: 24px;
+    height: 24px;
+    font-size: .65rem;
+  }
+  .status-timeline__label {
+    font-size: .62rem;
+  }
+  .detail-stat-value--large {
+    font-size: 1.3rem;
+  }
+  .notification-dropdown {
+    width: 92vw;
+    right: -40px;
+  }
+}

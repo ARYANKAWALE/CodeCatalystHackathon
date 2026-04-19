@@ -1450,6 +1450,32 @@ def internships_delete(id):
     return jsonify({"message": "Internship deleted"})
 
 
+@app.route("/api/internships/<int:id>/progress", methods=["PATCH"])
+@token_required
+def internships_update_progress(id):
+    """Allow students to update their own internship progress notes (or admin for any)."""
+    internship = db.session.get(Internship, id)
+    if not internship:
+        return jsonify({"error": "Internship not found"}), 404
+    is_stu, vsid = student_data_scope()
+    if is_stu:
+        if not vsid or internship.student_id != vsid:
+            return jsonify({"error": "You can only update your own internship progress"}), 403
+    elif current_user_role() != "admin":
+        return jsonify({"error": "Forbidden"}), 403
+    data = request.get_json() or {}
+    notes = data.get("progress_notes")
+    if notes is None:
+        return jsonify({"error": "progress_notes is required"}), 400
+    internship.progress_notes = str(notes).strip()
+    try:
+        db.session.commit()
+        return jsonify(internship.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PLACEMENTS
 # ══════════════════════════════════════════════════════════════════════════════

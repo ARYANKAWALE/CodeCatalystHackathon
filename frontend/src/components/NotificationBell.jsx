@@ -1,15 +1,23 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { getErrorMessage } from '../utils/errorMessage';
 import { NotificationLinkedList, createAsyncQueue } from '../utils/notificationList';
 
-function notificationTypeClass(kind) {
-  const k = String(kind || 'general').toLowerCase();
-  if (k.includes('internship')) return 'notification-type--internship';
-  if (k.includes('placement')) return 'notification-type--placement';
-  if (k.includes('appeal')) return 'notification-type--appeal';
-  return 'notification-type--general';
+/** Map kind → Bootstrap icon + CSS modifier class */
+const KIND_CONFIG = {
+  appeal_submitted: { icon: 'bi-chat-square-text', cls: 'notification-type--appeal' },
+  appeal_accepted: { icon: 'bi-check-circle', cls: 'notification-type--appeal' },
+  appeal_rejected: { icon: 'bi-x-circle', cls: 'notification-type--appeal' },
+  internship_created: { icon: 'bi-briefcase', cls: 'notification-type--internship' },
+  internship_status: { icon: 'bi-briefcase', cls: 'notification-type--internship' },
+  placement_created: { icon: 'bi-trophy', cls: 'notification-type--placement' },
+  placement_status: { icon: 'bi-trophy', cls: 'notification-type--placement' },
+  general: { icon: 'bi-bell', cls: 'notification-type--general' },
+};
+
+function kindCfg(kind) {
+  return KIND_CONFIG[(kind || '').toLowerCase()] || KIND_CONFIG.general;
 }
 
 function formatWhen(iso) {
@@ -21,7 +29,24 @@ function formatWhen(iso) {
   if (diff < 60) return 'Just now';
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 172800) return 'Yesterday';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/** Human-friendly group label */
+const GROUP_LABELS = {
+  appeal_submitted: 'Appeals',
+  appeal_accepted: 'Appeals',
+  appeal_rejected: 'Appeals',
+  internship_created: 'Internships',
+  internship_status: 'Internships',
+  placement_created: 'Placements',
+  placement_status: 'Placements',
+  general: 'General',
+};
+
+function groupLabel(kind) {
+  return GROUP_LABELS[kind] || 'Other';
 }
 
 export default function NotificationBell({ className = '' }) {
@@ -31,14 +56,26 @@ export default function NotificationBell({ className = '' }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [bannerError, setBannerError] = useState('');
+  const [filter, setFilter] = useState('all'); // 'all' | 'unread'
   const rootRef = useRef(null);
   const listRef = useRef(new NotificationLinkedList());
   const opQueueRef = useRef(createAsyncQueue());
+  const prevUnreadRef = useRef(0);
 
   const refreshCount = useCallback(async () => {
     try {
       const data = await api.get('/notifications/unread-count');
-      setUnread(typeof data?.count === 'number' ? data.count : 0);
+      const count = typeof data?.count === 'number' ? data.count : 0;
+      // Subtle visual pulse when new notifications arrive
+      if (count > prevUnreadRef.current && prevUnreadRef.current >= 0) {
+        const btn = rootRef.current?.querySelector('.notification-bell-btn');
+        if (btn) {
+          btn.classList.add('notification-bell-bounce');
+          setTimeout(() => btn.classList.remove('notification-bell-bounce'), 600);
+        }
+      }
+      prevUnreadRef.current = count;
+      setUnread(count);
     } catch {
       /* ignore */
     }
@@ -98,6 +135,22 @@ export default function NotificationBell({ className = '' }) {
     };
   }, [open, loadList, refreshCount]);
 
+  // Grouped summary of unread notifications (uses linked list groupByKind)
+  const groupedSummary = useMemo(() => {
+    const groups = listRef.current.groupByKind(true);
+    const merged = {};
+    for (const [k, count] of Object.entries(groups)) {
+      const label = groupLabel(k);
+      merged[label] = (merged[label] || 0) + count;
+    }
+    return Object.entries(merged).filter(([, c]) => c > 0);
+  }, [items]); // re-derive when items change
+
+  const displayItems = useMemo(() => {
+    if (filter === 'unread') return listRef.current.filterUnread();
+    return items;
+  }, [items, filter]);
+
   const markAllRead = () => {
     opQueueRef.current(async () => {
       try {
@@ -110,6 +163,13 @@ export default function NotificationBell({ className = '' }) {
         setBannerError(getErrorMessage(e, 'Could not mark all as read'));
       }
     });
+  };
+
+  const dismissItem = (n, e) => {
+    e.stopPropagation();
+    // Remove from linked list (O(1) via Map lookup) — no API call needed
+    listRef.current.removeById(n.id);
+    setItems(listRef.current.toArray());
   };
 
   const onItemClick = (n) => {
@@ -130,6 +190,8 @@ export default function NotificationBell({ className = '' }) {
       if (n.link) navigate(n.link);
     });
   };
+
+  const llUnread = listRef.current.unreadCount;
 
   return (
     <div className={`notification-bell-wrap ${className}`.trim()} ref={rootRef}>
@@ -152,12 +214,39 @@ export default function NotificationBell({ className = '' }) {
         <div className="notification-dropdown shadow-lg" role="dialog" aria-label="Notifications">
           <div className="notification-dropdown-head">
             <span className="fw-semibold">Notifications</span>
-            {unread > 0 && (
-              <button type="button" className="btn btn-link btn-sm p-0" onClick={markAllRead}>
-                Mark all read
-              </button>
-            )}
+            <div className="d-flex align-items-center gap-2">
+              {/* Filter toggle */}
+              <div className="notification-filter-tabs">
+                <button
+                  type="button"
+                  className={`notification-filter-tab ${filter === 'all' ? 'active' : ''}`}
+                  onClick={() => setFilter('all')}
+                >All</button>
+                <button
+                  type="button"
+                  className={`notification-filter-tab ${filter === 'unread' ? 'active' : ''}`}
+                  onClick={() => setFilter('unread')}
+                >Unread{llUnread > 0 ? ` (${llUnread})` : ''}</button>
+              </div>
+              {unread > 0 && (
+                <button type="button" className="btn btn-link btn-sm p-0" onClick={markAllRead}>
+                  Mark all read
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Grouped summary bar */}
+          {groupedSummary.length > 0 && (
+            <div className="notification-group-header">
+              {groupedSummary.map(([label, count]) => (
+                <span key={label} className="notification-group-chip">
+                  {count} {label}
+                </span>
+              ))}
+            </div>
+          )}
+
           <div className="notification-dropdown-body">
             {bannerError && (
               <div className="px-3 py-2 small text-danger border-bottom" role="alert">
@@ -170,30 +259,47 @@ export default function NotificationBell({ className = '' }) {
                 Loading…
               </div>
             )}
-            {!loading && items.length === 0 && !bannerError && (
-              <div className="notification-empty px-3 py-4 text-center small">
-                <p className="text-muted mb-2 mb-md-3">No notifications yet.</p>
+            {!loading && displayItems.length === 0 && !bannerError && (
+              <div className="notification-empty px-3 py-4 text-center">
+                <div className="notification-empty-icon">
+                  <i className="bi bi-bell-slash" aria-hidden />
+                </div>
+                <p className="text-muted mb-0 small">
+                  {filter === 'unread' ? 'All caught up!' : 'No notifications yet.'}
+                </p>
               </div>
             )}
             {!loading &&
-              items.map((n) => (
-                <button
-                  key={n.id}
-                  type="button"
-                  className={`notification-item ${n.read ? 'is-read' : ''}`}
-                  onClick={() => onItemClick(n)}
-                >
-                  <div
-                    className={`notification-item-type ${notificationTypeClass(n.kind)}`}
-                    title={n.kind_label || n.kind || 'Notification'}
-                  >
-                    {n.kind_label || n.kind || 'Notification'}
+              displayItems.map((n) => {
+                const cfg = kindCfg(n.kind);
+                return (
+                  <div key={n.id} className={`notification-item-wrap ${n.read ? 'is-read' : ''}`}>
+                    <button
+                      type="button"
+                      className="notification-item"
+                      onClick={() => onItemClick(n)}
+                    >
+                      <div className={`notification-item-icon ${cfg.cls}`}>
+                        <i className={`bi ${cfg.icon}`} aria-hidden />
+                      </div>
+                      <div className="notification-item-content">
+                        <div className="notification-item-title">{n.title}</div>
+                        {n.body && <div className="notification-item-body">{n.body}</div>}
+                        <div className="notification-item-meta">{formatWhen(n.created_at)}</div>
+                      </div>
+                      {!n.read && <span className="notification-unread-dot" />}
+                    </button>
+                    <button
+                      type="button"
+                      className="notification-dismiss"
+                      aria-label="Dismiss"
+                      onClick={(e) => dismissItem(n, e)}
+                    >
+                      <i className="bi bi-x" aria-hidden />
+                    </button>
                   </div>
-                  <div className="notification-item-title">{n.title}</div>
-                  {n.body && <div className="notification-item-body">{n.body}</div>}
-                  <div className="notification-item-meta">{formatWhen(n.created_at)}</div>
-                </button>
-              ))}
+                );
+              })}
           </div>
         </div>
       )}
