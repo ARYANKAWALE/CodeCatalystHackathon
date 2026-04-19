@@ -87,3 +87,9 @@ class Config:
 
     # "You signed in" notification (adds DB work + mail thread). Set MAIL_SIGN_IN_EMAIL=true to enable.
     MAIL_SIGN_IN_EMAIL = _env_strip("MAIL_SIGN_IN_EMAIL", "false").lower() in ("1", "true", "yes")
+
+    CLOUDINARY_URL = _env_strip("CLOUDINARY_URL")
+    CLOUDINARY_CLOUD_NAME = _env_strip("CLOUDINARY_CLOUD_NAME") or _env_strip("CLOUDINARY_NAME")
+    CLOUDINARY_API_KEY = _env_strip("CLOUDINARY_API_KEY") or _env_strip("CLOUDINARY_KEY")
+    CLOUDINARY_API_SECRET = _env_strip("CLOUDINARY_API_SECRET") or _env_strip("CLOUDINARY_SECRET")
+

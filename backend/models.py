@@ -114,6 +114,7 @@ class User(db.Model):
     password_reset_expires = db.Column(db.DateTime, nullable=True)
     # Last time the user opened the notification panel or cleared alerts (clears admin appeal badge for older items).
     notification_ack_at = db.Column(db.DateTime, nullable=True)
+    profile_image = db.Column(db.String(2048), nullable=True)
 
     student = db.relationship("Student", backref="user_account", uselist=False)
     applications = db.relationship(
@@ -136,6 +137,7 @@ class User(db.Model):
             "email": self.email,
             "role": self.role,
             "student_id": self.student_id,
+            "profile_image": self.profile_image,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -153,6 +155,7 @@ class Student(db.Model):
     cgpa = db.Column(db.Float)
     skills = db.Column(db.Text)
     resume_link = db.Column(db.String(2048))
+    profile_image = db.Column(db.String(2048), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     internships = db.relationship("Internship", backref="student", lazy=True, cascade="all, delete-orphan")
@@ -172,6 +175,7 @@ class Student(db.Model):
             "cgpa": self.cgpa,
             "skills": self.skills,
             "resume_link": self.resume_link,
+            "profile_image": self.profile_image,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
         if include_relations:

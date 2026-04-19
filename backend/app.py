@@ -43,6 +43,20 @@ app.config.from_object(Config)
 CORS(app, resources={r"/api/*": {"origins": "*"}}, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization"])
 db.init_app(app)
 
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+# cloudinary will auto-configure if CLOUDINARY_URL is in environment
+if app.config.get("CLOUDINARY_URL"):
+    cloudinary.config(url=app.config.get("CLOUDINARY_URL"))
+elif app.config.get("CLOUDINARY_CLOUD_NAME") and app.config.get("CLOUDINARY_API_KEY") and app.config.get("CLOUDINARY_API_SECRET"):
+    cloudinary.config(
+        cloud_name=app.config.get("CLOUDINARY_CLOUD_NAME"),
+        api_key=app.config.get("CLOUDINARY_API_KEY"),
+        api_secret=app.config.get("CLOUDINARY_API_SECRET")
+    )
+
+
 logging.getLogger("mail_utils").setLevel(logging.INFO)
 
 _mail_cfg = mail_config_snapshot(app)
@@ -501,6 +515,55 @@ def auth_profile_upload_resume():
 def serve_profile_resume(filename):
     """Serve uploaded profile resumes."""
     return send_from_directory(PROFILE_RESUME_UPLOAD_DIR, filename)
+
+
+@app.route("/api/auth/profile/image", methods=["POST"])
+@token_required
+def auth_profile_upload_image():
+    """Upload a profile image to Cloudinary."""
+    u = g.current_user
+    
+    if "image" not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    f = request.files["image"]
+    if not f.filename:
+        return jsonify({"error": "Empty file"}), 400
+
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
+        return jsonify({"error": "Only image files (jpg, png, webp, gif) are allowed"}), 400
+
+    f.seek(0, os.SEEK_END)
+    size = f.tell()
+    f.seek(0)
+    if size > 5 * 1024 * 1024:
+        return jsonify({"error": "File too large (max 5 MB)"}), 400
+
+    has_cloud_config = app.config.get("CLOUDINARY_URL") or (app.config.get("CLOUDINARY_CLOUD_NAME") and app.config.get("CLOUDINARY_API_KEY"))
+    if not has_cloud_config:
+        return jsonify({"error": "Cloudinary is not configured on the server."}), 500
+
+    try:
+        upload_result = cloudinary.uploader.upload(
+            f,
+            folder="placetrack_profiles",
+            public_id=f"user_{u.id}_{secrets.token_hex(4)}",
+            overwrite=True,
+            resource_type="image"
+        )
+        image_url = upload_result.get("secure_url")
+        
+        u.profile_image = image_url
+        if u.student_id and u.student:
+            u.student.profile_image = image_url
+            
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to upload to Cloudinary: {str(e)}"}), 500
+
+    return jsonify({"profile_image": image_url, "message": "Profile image uploaded successfully"})
 
 
 @app.route("/api/auth/forgot-password", methods=["POST"])

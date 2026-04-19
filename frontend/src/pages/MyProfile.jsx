@@ -32,6 +32,7 @@ export default function MyProfile() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [resumeUploading, setResumeUploading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -122,6 +123,39 @@ export default function MyProfile() {
     }
   };
 
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) {
+      setSaveMsg('Only image files are allowed');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setSaveMsg('File too large (max 5 MB)');
+      return;
+    }
+    setAvatarUploading(true);
+    setSaveMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const data = await api.postForm('/auth/profile/image', fd);
+      setProfile((prev) => ({
+        ...prev,
+        profile_image: data.profile_image,
+        student: prev.student ? { ...prev.student, profile_image: data.profile_image } : prev.student,
+      }));
+      setSaveMsg('Profile image updated!');
+      setTimeout(() => setSaveMsg(''), 4000);
+    } catch (err) {
+      setSaveMsg(getErrorMessage(err, 'Could not upload profile image'));
+    } finally {
+      setAvatarUploading(false);
+      e.target.value = '';
+    }
+  };
+
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center py-5">
@@ -152,7 +186,19 @@ export default function MyProfile() {
       {/* Hero card */}
       <div className="profile-hero">
         <div className="profile-hero__avatar">
-          <span>{initials}</span>
+          {profile.profile_image ? (
+            <img src={profile.profile_image} alt="Profile avatar" className="profile-image-img" />
+          ) : (
+            <span>{initials}</span>
+          )}
+          <label className="profile-avatar-upload" title="Upload new avatar">
+            <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={avatarUploading} className="d-none" />
+            {avatarUploading ? (
+              <span className="spinner-border spinner-border-sm text-light" role="status" />
+            ) : (
+              <i className="bi bi-camera-fill" aria-hidden />
+            )}
+          </label>
         </div>
         <div className="profile-hero__info">
           <h2 className="profile-hero__name">{stu?.name || profile.username}</h2>
