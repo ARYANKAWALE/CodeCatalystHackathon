@@ -39,6 +39,7 @@ export default function StudentForm() {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [resumeFile, setResumeFile] = useState(null);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -115,11 +116,20 @@ export default function StudentForm() {
           : parseFloat(form.cgpa),
     };
     try {
+      let studentId = id;
       if (isEdit) {
         await api.put(`/students/${id}`, body);
       } else {
-        await api.post('/students', body);
+        const res = await api.post('/students', body);
+        studentId = res.id;
       }
+      
+      if (resumeFile && studentId) {
+        const fd = new FormData();
+        fd.append('resume', resumeFile);
+        await api.postForm(`/students/${studentId}/resume`, fd);
+      }
+      
       navigate('/students');
     } catch (err) {
       setError(getErrorMessage(err, 'Save failed'));
@@ -312,18 +322,40 @@ export default function StudentForm() {
               />
             </div>
             <div className="col-12">
-              <label className="form-label" htmlFor="resume_link">
-                Resume (PDF URL)
+              <label className="form-label" htmlFor="resumeFile">
+                Resume (PDF file)
               </label>
+              {form.resume_link && !resumeFile && (
+                <div className="mb-2">
+                  <span className="badge bg-secondary me-2">Current</span>
+                  <a href={form.resume_link} target="_blank" rel="noopener noreferrer">
+                    {form.resume_link.split('/').pop()}
+                  </a>
+                </div>
+              )}
               <input
-                id="resume_link"
-                name="resume_link"
-                type="url"
+                id="resumeFile"
+                name="resumeFile"
+                type="file"
+                accept=".pdf"
                 className="form-control"
-                value={form.resume_link}
-                onChange={onChange}
-                placeholder="https://… (link to PDF)"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file && !file.name.toLowerCase().endsWith('.pdf')) {
+                    setError('Only PDF files are allowed');
+                    e.target.value = '';
+                    setResumeFile(null);
+                  } else if (file && file.size > 5 * 1024 * 1024) {
+                    setError('File too large (max 5 MB)');
+                    e.target.value = '';
+                    setResumeFile(null);
+                  } else {
+                    setResumeFile(file || null);
+                    setError('');
+                  }
+                }}
               />
+              <div className="form-text">Choose a new PDF file to upload (replaces existing).</div>
             </div>
           </div>
           <div className="d-flex gap-2 mt-4">

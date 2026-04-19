@@ -47,10 +47,10 @@ function buildDoughnutOptions(dark) {
     plugins: {
       legend: { display: false },
       tooltip: {
-        titleColor: dark ? '#ffffff' : '#0f172a',
-        bodyColor: dark ? '#e2e8f0' : '#334155',
-        backgroundColor: dark ? 'rgba(30, 41, 59, 0.96)' : '#ffffff',
-        borderColor: dark ? '#475569' : '#e2e8f0',
+        titleColor: dark ? '#fafafa' : '#0f172a',
+        bodyColor: dark ? '#d4d4d8' : '#334155',
+        backgroundColor: dark ? 'rgba(24, 24, 27, 0.97)' : '#ffffff',
+        borderColor: dark ? '#3f3f46' : '#e2e8f0',
         borderWidth: 1,
       },
     },

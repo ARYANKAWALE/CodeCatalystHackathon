@@ -34,6 +34,7 @@ from phone_utils import normalize_india_phone
 
 STATIC_FOLDER = os.path.join(os.path.dirname(__file__), "static_frontend")
 APPLICATION_RESUME_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads", "application_resumes")
+PROFILE_RESUME_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads", "profile_resumes")
 MAX_APPLICATION_RESUME_BYTES = 5 * 1024 * 1024  # 5 MB
 
 app = Flask(__name__, static_folder=STATIC_FOLDER, static_url_path="")
@@ -354,6 +355,152 @@ def login():
 @token_required
 def auth_me():
     return jsonify({"user": g.current_user.to_dict()})
+
+
+@app.route("/api/auth/profile")
+@token_required
+def auth_profile():
+    """Return full profile: user fields + linked student record (if any)."""
+    u = g.current_user
+    profile = u.to_dict()
+    profile["student"] = None
+    if u.student_id and u.student:
+        s = u.student
+        profile["student"] = {
+            "id": s.id,
+            "name": s.name,
+            "roll_number": s.roll_number,
+            "email": s.email,
+            "phone": s.phone,
+            "department": s.department,
+            "course": s.course,
+            "year": s.year,
+            "cgpa": s.cgpa,
+            "skills": s.skills,
+            "resume_link": s.resume_link,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+    return jsonify(profile)
+
+
+@app.route("/api/auth/profile", methods=["PATCH"])
+@token_required
+def auth_profile_update():
+    """Update own profile. Username is immutable. Email must remain unique."""
+    u = g.current_user
+    data = request.get_json() or {}
+
+    # ── User-level fields ──
+    new_email = (data.get("email") or "").strip().lower()
+    if new_email and new_email != (u.email or "").lower():
+        if "@" not in new_email:
+            return jsonify({"error": "Invalid email address"}), 400
+        dup = User.query.filter(User.id != u.id, db.func.lower(User.email) == new_email).first()
+        if dup:
+            return jsonify({"error": "Email already taken by another account"}), 409
+        u.email = new_email
+
+    # ── Student-level fields (only if linked) ──
+    if u.student_id and u.student:
+        s = u.student
+        for field in ["name", "phone", "department", "course", "skills"]:
+            if field in data:
+                val = (data[field] or "").strip()
+                setattr(s, field, val)
+        if "year" in data:
+            try:
+                s.year = int(data["year"])
+            except (ValueError, TypeError):
+                return jsonify({"error": "Year must be a number"}), 400
+        if "cgpa" in data:
+            try:
+                s.cgpa = float(data["cgpa"]) if data["cgpa"] not in (None, "") else None
+            except (ValueError, TypeError):
+                return jsonify({"error": "CGPA must be a number"}), 400
+        if "resume_link" in data:
+            s.resume_link = (data["resume_link"] or "").strip() or None
+        # Sync student email with user email
+        if new_email:
+            s.email = new_email
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+    # Return updated profile
+    profile = u.to_dict()
+    profile["student"] = None
+    if u.student_id and u.student:
+        s = u.student
+        profile["student"] = {
+            "id": s.id, "name": s.name, "roll_number": s.roll_number,
+            "email": s.email, "phone": s.phone, "department": s.department,
+            "course": s.course, "year": s.year, "cgpa": s.cgpa,
+            "skills": s.skills, "resume_link": s.resume_link,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+    return jsonify(profile)
+
+
+@app.route("/api/auth/profile/resume", methods=["POST"])
+@token_required
+def auth_profile_upload_resume():
+    """Upload a PDF resume file for the current student user."""
+    u = g.current_user
+    if not u.student_id or not u.student:
+        return jsonify({"error": "Only students with a linked record can upload resumes"}), 403
+
+    if "resume" not in request.files:
+        return jsonify({"error": "No resume file provided"}), 400
+
+    f = request.files["resume"]
+    if not f.filename:
+        return jsonify({"error": "Empty file"}), 400
+
+    # Validate PDF
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext != ".pdf":
+        return jsonify({"error": "Only PDF files are allowed"}), 400
+
+    # Check size
+    f.seek(0, os.SEEK_END)
+    size = f.tell()
+    f.seek(0)
+    if size > MAX_APPLICATION_RESUME_BYTES:
+        return jsonify({"error": f"File too large (max {MAX_APPLICATION_RESUME_BYTES // (1024*1024)} MB)"}), 400
+
+    os.makedirs(PROFILE_RESUME_UPLOAD_DIR, exist_ok=True)
+
+    # Delete old resume if exists
+    old_link = u.student.resume_link
+    if old_link and old_link.startswith("/api/uploads/profile_resumes/"):
+        old_path = os.path.join(PROFILE_RESUME_UPLOAD_DIR, os.path.basename(old_link))
+        if os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
+
+    safe_name = secure_filename(f"{u.student.roll_number}_{u.student_id}_{f.filename}")
+    filepath = os.path.join(PROFILE_RESUME_UPLOAD_DIR, safe_name)
+    f.save(filepath)
+
+    u.student.resume_link = f"/api/uploads/profile_resumes/{safe_name}"
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"resume_link": u.student.resume_link, "message": "Resume uploaded successfully"})
+
+
+@app.route("/api/uploads/profile_resumes/<path:filename>")
+def serve_profile_resume(filename):
+    """Serve uploaded profile resumes."""
+    return send_from_directory(PROFILE_RESUME_UPLOAD_DIR, filename)
 
 
 @app.route("/api/auth/forgot-password", methods=["POST"])
@@ -694,6 +841,55 @@ def students_update(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/students/<int:id>/resume", methods=["POST"])
+@admin_required
+def students_upload_resume(id):
+    student = db.session.get(Student, id)
+    if not student:
+        return jsonify({"error": "Student not found"}), 404
+        
+    if "resume" not in request.files:
+        return jsonify({"error": "No resume file provided"}), 400
+
+    f = request.files["resume"]
+    if not f.filename:
+        return jsonify({"error": "Empty file"}), 400
+
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext != ".pdf":
+        return jsonify({"error": "Only PDF files are allowed"}), 400
+
+    f.seek(0, os.SEEK_END)
+    size = f.tell()
+    f.seek(0)
+    if size > MAX_APPLICATION_RESUME_BYTES:
+        return jsonify({"error": f"File too large (max {MAX_APPLICATION_RESUME_BYTES // (1024*1024)} MB)"}), 400
+
+    os.makedirs(PROFILE_RESUME_UPLOAD_DIR, exist_ok=True)
+
+    old_link = student.resume_link
+    if old_link and old_link.startswith("/api/uploads/profile_resumes/"):
+        old_path = os.path.join(PROFILE_RESUME_UPLOAD_DIR, os.path.basename(old_link))
+        if os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
+
+    safe_name = secure_filename(f"{student.roll_number}_{student.id}_{f.filename}")
+    filepath = os.path.join(PROFILE_RESUME_UPLOAD_DIR, safe_name)
+    f.save(filepath)
+
+    student.resume_link = f"/api/uploads/profile_resumes/{safe_name}"
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"resume_link": student.resume_link, "message": "Resume uploaded successfully"})
 
 
 @app.route("/api/students/<int:id>", methods=["DELETE"])

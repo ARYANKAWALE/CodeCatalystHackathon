@@ -39,8 +39,7 @@ export default function Navbar({ children }) {
   /** Student-only UI; admins never use "My …" nav even if student_id is set */
   const isStudent = role === 'student' && !isAdmin;
 
-  const profilePath =
-    isStudent && user.student_id != null ? `/students/${user.student_id}` : '/my-profile';
+  const profilePath = '/my-profile';
 
   const navItems = [
     { to: '/dashboard', icon: 'bi-grid-1x2-fill', label: 'Dashboard', end: true },
@@ -143,6 +142,12 @@ export default function Navbar({ children }) {
                 </span>
               </li>
               <li><hr className="dropdown-divider" /></li>
+              <li>
+                <Link className="dropdown-item" to="/my-profile" onClick={closeMenu}>
+                  <i className="bi bi-person-circle me-2" />
+                  My profile
+                </Link>
+              </li>
               <li>
                 <Link className="dropdown-item" to="/account/password" onClick={closeMenu}>
                   <i className="bi bi-key me-2" />
