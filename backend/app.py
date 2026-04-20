@@ -2725,17 +2725,26 @@ def _ensure_db_schema():
     _ensure_users_notification_ack_at_column()
     _ensure_students_course_column()
 
-# Initialize DB synchronously and immediately dispose of the SQLAlchemy Engine pool.
-# This ensures that Gunicorn (which forks worker processes) creates clean connections
-# per-worker rather than sharing a pre-fork socket.
-with app.app_context():
-    _ensure_db_schema()
-    if not User.query.filter_by(username="admin").first():
-        admin = User(username="admin", email="admin@placetrack.edu", role="admin")
-        admin.set_password("admin123")
-        db.session.add(admin)
-        db.session.commit()
-    db.engine.dispose()
+# Initialize DB safely upon the very first incoming web request.
+# This prevents Gunicorn master from crashing (f405 DBAPI errors) during startup if the DB is asleep
+# and natively solves the pre-fork socket sharing bug since workers execute this post-fork!
+_db_initialized = False
+
+@app.before_request
+def initialize_db_on_first_request():
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            _ensure_db_schema()
+            if not User.query.filter_by(username="admin").first():
+                admin = User(username="admin", email="admin@placetrack.edu", role="admin")
+                admin.set_password("admin123")
+                db.session.add(admin)
+                db.session.commit()
+            _db_initialized = True
+        except Exception as e:
+            db.session.rollback()
+            print(f"PlaceTrack DB Init Error - will retry on next request: {e}")
 
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
