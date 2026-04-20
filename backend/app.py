@@ -2726,13 +2726,6 @@ def _ensure_db_schema():
     _ensure_students_course_column()
 
 
-with app.app_context():
-    _ensure_db_schema()
-    if not User.query.filter_by(username="admin").first():
-        admin = User(username="admin", email="admin@placetrack.edu", role="admin")
-        admin.set_password("admin123")
-        db.session.add(admin)
-        db.session.commit()
 
 if __name__ == "__main__":
     init_db()
