@@ -2725,8 +2725,17 @@ def _ensure_db_schema():
     _ensure_users_notification_ack_at_column()
     _ensure_students_course_column()
 
-
+# Initialize DB synchronously and immediately dispose of the SQLAlchemy Engine pool.
+# This ensures that Gunicorn (which forks worker processes) creates clean connections
+# per-worker rather than sharing a pre-fork socket.
+with app.app_context():
+    _ensure_db_schema()
+    if not User.query.filter_by(username="admin").first():
+        admin = User(username="admin", email="admin@placetrack.edu", role="admin")
+        admin.set_password("admin123")
+        db.session.add(admin)
+        db.session.commit()
+    db.engine.dispose()
 
 if __name__ == "__main__":
-    init_db()
     app.run(debug=True, port=5001)

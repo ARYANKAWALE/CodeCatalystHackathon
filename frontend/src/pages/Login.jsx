@@ -76,8 +76,6 @@ export default function Login() {
             </div>
           </div>
 
-          <p className="text-muted small mb-3">Demo: <code>admin</code> / <code>admin123</code></p>
-
           <button type="submit" className="btn btn-primary w-100 py-2 fw-semibold" disabled={submitting}>
             {submitting ? <span className="spinner-border spinner-border-sm" /> : 'Sign In'}
           </button>
