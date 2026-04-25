@@ -41,6 +41,21 @@ app = Flask(__name__, static_folder=STATIC_FOLDER, static_url_path="")
 app.config.from_object(Config)
 
 CORS(app, resources={r"/api/*": {"origins": "*"}}, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization"])
+
+import traceback
+from werkzeug.exceptions import HTTPException
+
+@app.errorhandler(Exception)
+def handle_global_error(e):
+    if isinstance(e, HTTPException):
+        return e
+    print(f"Global Error Hook caught: {e}")
+    traceback.print_exc()
+    return jsonify({
+        "error": f"INTERNAL SERVER ERROR: {str(e)}",
+        "detailed_traceback": traceback.format_exc()
+    }), 500
+
 db.init_app(app)
 
 import cloudinary
@@ -48,13 +63,17 @@ import cloudinary.uploader
 import cloudinary.api
 # cloudinary will auto-configure if CLOUDINARY_URL is in environment
 if app.config.get("CLOUDINARY_URL"):
+    print(f"DEBUG: Configuring Cloudinary via URL")
     cloudinary.config(url=app.config.get("CLOUDINARY_URL"))
 elif app.config.get("CLOUDINARY_CLOUD_NAME") and app.config.get("CLOUDINARY_API_KEY") and app.config.get("CLOUDINARY_API_SECRET"):
+    print(f"DEBUG: Configuring Cloudinary via credentials: {app.config.get('CLOUDINARY_CLOUD_NAME')}")
     cloudinary.config(
         cloud_name=app.config.get("CLOUDINARY_CLOUD_NAME"),
         api_key=app.config.get("CLOUDINARY_API_KEY"),
         api_secret=app.config.get("CLOUDINARY_API_SECRET")
     )
+else:
+    print("DEBUG: Cloudinary not configured")
 
 
 logging.getLogger("mail_utils").setLevel(logging.INFO)
@@ -873,7 +892,13 @@ def students_get(id):
     student = db.session.get(Student, id)
     if not student:
         return jsonify({"error": "Student not found"}), 404
-    return jsonify(student.to_dict(include_relations=True))
+    d = student.to_dict(include_relations=True)
+    # Fallback: if student has no profile_image, check the linked User
+    if not d.get("profile_image"):
+        linked_user = User.query.filter_by(student_id=id).first()
+        if linked_user and linked_user.profile_image:
+            d["profile_image"] = linked_user.profile_image
+    return jsonify(d)
 
 
 @app.route("/api/students/<int:id>", methods=["PUT"])
@@ -901,6 +926,60 @@ def students_update(id):
     try:
         db.session.commit()
         return jsonify(student.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/students/<int:id>/image", methods=["POST"])
+@token_required
+def students_upload_image(id):
+    student = db.session.get(Student, id)
+    if not student:
+        return jsonify({"error": "Student not found"}), 404
+        
+    is_stu, vsid = student_data_scope()
+    if is_stu and vsid != id:
+        return jsonify({"error": "Forbidden"}), 403
+
+    if "image" not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    f = request.files["image"]
+    if not f.filename:
+        return jsonify({"error": "Empty file"}), 400
+
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
+        return jsonify({"error": "Only image files (jpg, png, webp, gif) are allowed"}), 400
+
+    f.seek(0, os.SEEK_END)
+    size = f.tell()
+    f.seek(0)
+    if size > 5 * 1024 * 1024:
+        return jsonify({"error": "File too large (max 5 MB)"}), 400
+
+    has_cloud_config = app.config.get("CLOUDINARY_URL") or (app.config.get("CLOUDINARY_CLOUD_NAME") and app.config.get("CLOUDINARY_API_KEY"))
+    if not has_cloud_config:
+        return jsonify({"error": "Cloudinary is not configured on the server."}), 500
+
+    try:
+        upload_result = cloudinary.uploader.upload(
+            f,
+            folder="placetrack_profiles",
+            public_id=f"student_{id}_{secrets.token_hex(4)}",
+            overwrite=True,
+            resource_type="image"
+        )
+        image_url = upload_result.get("secure_url")
+        
+        student.profile_image = image_url
+        linked_user = User.query.filter_by(student_id=id).first()
+        if linked_user:
+            linked_user.profile_image = image_url
+            
+        db.session.commit()
+        return jsonify(student.to_dict(include_relations=True))
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500

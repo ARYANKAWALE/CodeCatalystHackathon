@@ -131,7 +131,16 @@ export default function Navbar({ children }) {
               data-bs-toggle="dropdown"
               aria-expanded="false"
             >
-              <div className="avatar-sm">{user.username[0].toUpperCase()}</div>
+              {user.profile_image ? (
+                <img
+                  src={user.profile_image}
+                  alt={`${user.username} avatar`}
+                  className="avatar-sm rounded-circle"
+                  style={{ objectFit: 'cover' }}
+                />
+              ) : (
+                <div className="avatar-sm">{user.username[0].toUpperCase()}</div>
+              )}
               <span className="text-truncate flex-grow-1 text-start">{user.username}</span>
               <i className="bi bi-chevron-up small flex-shrink-0" />
             </button>

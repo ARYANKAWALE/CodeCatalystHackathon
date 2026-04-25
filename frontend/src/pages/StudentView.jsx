@@ -42,6 +42,8 @@ export default function StudentView() {
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [viewImage, setViewImage] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +76,33 @@ export default function StudentView() {
       navigate('/students');
     } catch (e) {
       setError(getErrorMessage(e, 'Delete failed'));
+    }
+  };
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) {
+      setError('Only image files are allowed');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File too large (max 5 MB)');
+      return;
+    }
+    setAvatarUploading(true);
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const data = await api.postForm(`/students/${id}/image`, fd);
+      setStudent(data);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not upload profile image'));
+    } finally {
+      setAvatarUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -136,8 +165,31 @@ export default function StudentView() {
 
           <div className="student-identity-card__layout">
             <div className="student-identity-card__identity-row">
-              <div className="student-identity-card__avatar" aria-hidden>
-                {initialsFromName(student.name)}
+              <div className="position-relative">
+                {student.profile_image ? (
+                  <img
+                    src={student.profile_image}
+                    alt={`${student.name} profile`}
+                    className="student-identity-card__avatar img-fluid"
+                    style={{ objectFit: 'cover', cursor: 'pointer' }}
+                    onClick={() => setViewImage(true)}
+                    aria-hidden
+                  />
+                ) : (
+                  <div className="student-identity-card__avatar" aria-hidden>
+                    {initialsFromName(student.name)}
+                  </div>
+                )}
+                {(isAdmin || isOwnProfile) && (
+                  <label className="profile-avatar-upload" style={{ position: 'absolute', bottom: -5, right: -5, width: 32, height: 32, cursor: 'pointer', zIndex: 2 }} title="Upload new avatar">
+                    <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={avatarUploading} className="d-none" />
+                    {avatarUploading ? (
+                      <span className="spinner-border spinner-border-sm text-light" style={{ width: '1rem', height: '1rem' }} role="status" />
+                    ) : (
+                      <i className="bi bi-camera-fill" aria-hidden />
+                    )}
+                  </label>
+                )}
               </div>
               <div className="student-identity-card__identity-text">
                 <h2 className="student-identity-card__name">{fmt(student.name)}</h2>
@@ -363,6 +415,28 @@ export default function StudentView() {
           </div>
         </div>
       </div>
+      
+      {viewImage && student.profile_image && (
+        <div 
+          className="modal-backdrop show d-flex justify-content-center align-items-center" 
+          style={{ zIndex: 1050, backgroundColor: 'rgba(0,0,0,0.8)' }}
+          onClick={() => setViewImage(false)}
+        >
+          <div className="position-relative" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="btn-close btn-close-white position-absolute" 
+              onClick={() => setViewImage(false)} 
+              aria-label="Close"
+              style={{ zIndex: 1051, top: '-2rem', right: '-2rem' }}
+            />
+            <img 
+              src={student.profile_image} 
+              alt="Expanded profile" 
+              style={{ maxHeight: '85vh', maxWidth: '90vw', objectFit: 'contain', borderRadius: '8px' }} 
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
